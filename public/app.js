@@ -114,6 +114,7 @@ function render(){ clearPoll(); if(!USER){renderAuth();return;} const r=USER.rol
 
 /* ================= AUTH ================= */
 let authMode='login', authRole='cliente';
+let cadEnd={};  // endereço-base escolhido no cadastro do cliente
 let resetStep=1, resetEmail='', resetDevCode='', resetCode='', resetExpiresAt=0, resetTimer=null;
 const DEMO=[['cliente','cliente@leva.com','123456'],['motoboy','motoboy@leva.com','123456'],['admin','admin@leva.com','admin123']];
 
@@ -175,18 +176,27 @@ function renderCadastro(){
       <div class="field"><label>Gênero <span class="req">*</span></label><select id="cd_gen"><option value="">Selecione…</option><option value="f">Feminino</option><option value="m">Masculino</option><option value="n">Prefiro não informar</option></select><div class="fe" id="e_cd_gen"></div></div>
     </div>
     <div id="cd_moto"></div>
+    <div id="cd_end"></div>
     <div class="row2">
       <div class="field"><label>Senha <span class="req">*</span></label><input id="cd_senha" type="password" placeholder="mín. 6"><div class="fe" id="e_cd_senha"></div></div>
       <div class="field"><label>Confirmar senha <span class="req">*</span></label><input id="cd_senha2" type="password"><div class="fe" id="e_cd_senha2"></div></div>
     </div>
     <button class="btn btn-neon btn-block" id="cd_go">Criar conta</button>`;
-  app().querySelectorAll('.rp').forEach(r=>r.onclick=()=>{authRole=r.dataset.r;renderCadastro();});
+  app().querySelectorAll('.rp').forEach(r=>r.onclick=()=>{authRole=r.dataset.r;cadEnd={};renderCadastro();});
   $('#cd_moto').innerHTML = authRole==='motoboy'?`
     <div class="row2">
       <div class="field"><label>Placa <span class="req">*</span></label><input id="cd_placa" placeholder="ABC1D23"><div class="fe" id="e_cd_placa"></div></div>
       <div class="field"><label>Modelo <span class="req">*</span></label><input id="cd_modelo" placeholder="Honda CG 160"><div class="fe" id="e_cd_modelo"></div></div>
     </div>
     <div class="field"><label>Nº da CNH <span class="req">*</span></label><input id="cd_cnh"><div class="fe" id="e_cd_cnh"></div></div>`:'';
+  $('#cd_end').innerHTML = authRole==='cliente'?`
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--neon);margin:6px 0 8px">Seu endereço (base do mapa)</div>
+    <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="cd_rua" placeholder="Comece a digitar e escolha a sugestão…" autocomplete="off"><div class="fe" id="e_cd_rua"></div></div>
+    <div class="row2"><div class="field"><label>Número <span class="req">*</span></label><input id="cd_num" placeholder="nº"><div class="fe" id="e_cd_num"></div></div>
+      <div class="field"><label>Bairro <span class="req">*</span></label><input id="cd_bai"></div></div>
+    <div class="row2"><div class="field"><label>Cidade <span class="req">*</span></label><input id="cd_cid"></div>
+      <div class="field"><label>UF <span class="req">*</span></label><input id="cd_uf" maxlength="2" style="text-transform:uppercase"></div></div>`:'';
+  if(authRole==='cliente')attachGeocode('cd',(s)=>{cadEnd={rua:s.rua||$('#cd_rua').value,numero:s.numero||$('#cd_num').value,bairro:s.bairro||'',cidade:s.cidade||'',uf:(s.uf||'').toUpperCase(),lat:s.lat,lng:s.lng};},()=>{cadEnd.lat=undefined;cadEnd.lng=undefined;});
   $('#cd_go').onclick=doCadastro;
 }
 async function doCadastro(){
@@ -202,13 +212,20 @@ async function doCadastro(){
   fe('cd_senha2',v('cd_senha2')!==b.senha?'Senhas não coincidem':'');
   if(authRole==='motoboy'){b.placa=v('cd_placa');b.modelo=v('cd_modelo');b.cnh=v('cd_cnh');
     fe('cd_placa',!b.placa?'Obrigatório':'');fe('cd_modelo',!b.modelo?'Obrigatório':'');fe('cd_cnh',!b.cnh?'Obrigatório':'');}
+  if(authRole==='cliente'){
+    const end={rua:v('cd_rua'),numero:v('cd_num'),bairro:v('cd_bai'),cidade:v('cd_cid'),uf:v('cd_uf').toUpperCase(),lat:cadEnd.lat,lng:cadEnd.lng};
+    fe('cd_rua',!end.rua?'Informe e escolha a sugestão':'');
+    fe('cd_num',!end.numero?'Obrigatório':'');
+    if(end.rua&&(!end.bairro||!end.cidade))fe('cd_rua','Escolha uma sugestão para preencher bairro/cidade');
+    b.endereco=end;
+  }
   if(!ok)return; loading(true);
   try{
     const res=await api('/auth/register',{method:'POST',body:b});
     TOKEN=res.token; localStorage.setItem('leva_token',TOKEN); USER=res.user;
     loading(false); toast('Conta criada!'); render();
   }catch(e){ loading(false);
-    if(e.data&&e.data.erros){Object.entries(e.data.erros).forEach(([k,m])=>fe('cd_'+(k==='telefone'?'tel':k),m));}
+    if(e.data&&e.data.erros){Object.entries(e.data.erros).forEach(([k,m])=>fe('cd_'+(k==='telefone'?'tel':k==='endereco'?'rua':k),m));}
     else toast('Erro ao cadastrar',1);
   }
 }
@@ -308,41 +325,19 @@ function renderTab(){
 const ORD={solicitada:0,aceita:1,a_caminho:2,aguardando:3,em_andamento:4,concluida:5,paga:6,cancelada:-1};
 const labelStatus=s=>({solicitada:'Solicitada',aceita:'Aceita',a_caminho:'A caminho',aguardando:'Aguardando',em_andamento:'Em andamento',concluida:'Concluída',paga:'Paga',cancelada:'Cancelada'})[s]||s;
 
-/* ================= GOOGLE MAPS ================= */
-let mapsPromise=null;
-function loadMaps(){
-  if(!CFG.mapsEnabled) return Promise.reject('no-key');
-  if(mapsPromise) return mapsPromise;
-  mapsPromise=new Promise((res,rej)=>{
-    window.__mapsReady=()=>res(window.google);
-    const s=document.createElement('script');
-    s.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CFG.mapsKey)}&language=pt-BR&region=BR&callback=__mapsReady`;
-    s.async=true; s.onerror=()=>rej('load-fail'); document.head.appendChild(s);
-  });
-  return mapsPromise;
-}
-function parseComp(place){
-  const c={}; (place.address_components||[]).forEach(comp=>{
-    const t=comp.types;
-    if(t.includes('route'))c.rua=comp.long_name;
-    if(t.includes('street_number'))c.numero=comp.long_name;
-    if(!c.bairro&&(t.includes('sublocality_level_1')||t.includes('neighborhood')||t.includes('sublocality')))c.bairro=comp.long_name;
-  });
-  if(place.geometry&&place.geometry.location){c.lat=place.geometry.location.lat();c.lng=place.geometry.location.lng();}
-  return c;
-}
-
 /* ================= CLIENTE ================= */
 const ped={o:{},d:{}};
-let gmap=null,mkO=null,mkD=null,dirRenderer=null,dirService=null;
+let homeMap=null;
 function cliPedir(){
   ped.o={};ped.d={};
+  const end=(USER&&USER.endereco)||null;
   setBody(`
-  ${CFG.mapsEnabled?'<div id="map"></div>':'<div id="map"><div class="maptip">🗺️ Mapa indisponível — configure a chave do Google Maps no servidor (GOOGLE_MAPS_API_KEY).<br>O pedido ainda funciona; a distância é estimada.</div></div>'}
+  <div id="map"></div>
+  <div class="small muted" id="mapcap" style="margin:8px 2px 0">${end?('🏠 Seu endereço cadastrado: <b>'+esc(end.rua)+', '+esc(end.numero)+'</b> — '+esc(end.bairro)+(end.cidade?', '+esc(end.cidade)+(end.uf?'/'+esc(end.uf):''):'')+' <span class="muted">(mapa apenas para visualização)</span>'):'🏠 Cadastre seu endereço no <b>Perfil</b> para aparecer aqui no mapa.'}</div>
   <div class="grid g2" style="margin-top:16px">
     <div class="card">
       <h3>Pedir uma corrida</h3>
-      <div class="sub">Digite o endereço e selecione a sugestão do mapa. O bairro é preenchido sozinho.</div>
+      <div class="sub">Digite o endereço e selecione a sugestão. Bairro, cidade e UF são preenchidos sozinhos.</div>
       <div class="banner info">Limite do baú: ${CFG.max.c}×${CFG.max.l}×${CFG.max.a} cm e ${CFG.max.peso} kg.</div>
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--neon);margin:4px 0 10px">Coleta</div>
       <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="o_rua" placeholder="Comece a digitar e escolha a sugestão…" autocomplete="off"></div>
@@ -371,8 +366,9 @@ function cliPedir(){
   const campoMap={num:'numero',bai:'bairro',cid:'cidade',uf:'uf'};
   ['o_num','o_bai','o_cid','o_uf','d_num','d_bai','d_cid','d_uf'].forEach(id=>$('#'+id).addEventListener('input',()=>{const s=id[0]==='o'?'o':'d';ped[s][campoMap[id.slice(2)]]=$('#'+id).value;updateQuote();}));
   ['o_rua','d_rua'].forEach(id=>$('#'+id).addEventListener('input',()=>{const s=id[0]==='o'?'o':'d';ped[s].rua=$('#'+id).value;}));
-  attachGeocode('o'); attachGeocode('d');           // autocomplete grátis (OpenStreetMap) — não depende do Google
-  if(CFG.mapsEnabled) initPedirMap();               // mapa visual do Google (opcional)
+  attachGeocode('o',(s)=>{ped.o={rua:s.rua||$('#o_rua').value,numero:s.numero||$('#o_num').value,bairro:s.bairro||'',cidade:s.cidade||'',uf:(s.uf||'').toUpperCase(),lat:s.lat,lng:s.lng};computeDist();},()=>{ped.o.lat=undefined;ped.o.lng=undefined;});
+  attachGeocode('d',(s)=>{ped.d={rua:s.rua||$('#d_rua').value,numero:s.numero||$('#d_num').value,bairro:s.bairro||'',cidade:s.cidade||'',uf:(s.uf||'').toUpperCase(),lat:s.lat,lng:s.lng};computeDist();},()=>{ped.d.lat=undefined;ped.d.lng=undefined;});
+  initPedirMap();                                   // mapa (OpenStreetMap) mostrando o endereço-base da cliente — só visual
 }
 /* ---- autocomplete de endereço via /api/geocode (OpenStreetMap) ---- */
 function ensureAcStyles(){
@@ -387,39 +383,44 @@ function ensureAcStyles(){
   .acload{padding:10px 12px;color:#9a9a9a;font-size:12px}`;
   document.head.appendChild(st);
 }
-function attachGeocode(side){
+// prefix = id dos campos (prefix_rua, prefix_num, prefix_bai, prefix_cid, prefix_uf)
+// onChoose(s) chamado ao escolher uma sugestão; onClear() ao digitar (invalida coordenadas)
+function attachGeocode(prefix,onChoose,onClear){
   ensureAcStyles();
-  const inp=$('#'+side+'_rua'); if(!inp)return;
-  const field=inp.closest('.field'); let box=null, t=null, items=[], sel=-1;
+  const inp=$('#'+prefix+'_rua'); if(!inp)return;
+  const field=inp.closest('.field'); let box=null, t=null, items=[], sel=-1, seq=0;
+  const set=(suf,v)=>{const el=$('#'+prefix+'_'+suf);if(el)el.value=v;};
   const close=()=>{if(box){box.remove();box=null;}items=[];sel=-1;};
   const choose=(s)=>{
     inp.value=s.rua||s.label;
-    $('#'+side+'_bai').value=s.bairro||'';
-    $('#'+side+'_cid').value=s.cidade||'';
-    $('#'+side+'_uf').value=(s.uf||'').toUpperCase();
-    if(s.numero)$('#'+side+'_num').value=s.numero;
-    ped[side]={rua:s.rua||inp.value,numero:s.numero||$('#'+side+'_num').value,bairro:s.bairro||'',cidade:s.cidade||'',uf:(s.uf||'').toUpperCase(),lat:s.lat,lng:s.lng};
-    close(); computeDist();
-    if(!s.numero)setTimeout(()=>{const n=$('#'+side+'_num');if(n)n.focus();},60); // deixa só o número para o cliente
+    set('bai',s.bairro||''); set('cid',s.cidade||''); set('uf',(s.uf||'').toUpperCase());
+    if(s.numero)set('num',s.numero);
+    close(); if(onChoose)onChoose(s);
+    if(!s.numero)setTimeout(()=>{const n=$('#'+prefix+'_num');if(n)n.focus();},60); // deixa só o número
   };
   const paint=()=>{
     if(!box){box=document.createElement('div');box.className='acbox';field.appendChild(box);}
     box.innerHTML=items.map((s,i)=>`<div class="acit${i===sel?' sel':''}" data-i="${i}"><div class="r">${esc(s.rua||s.label)}${s.numero?', '+esc(s.numero):''}</div><div class="m">${esc([s.bairro,s.cidade,s.estado].filter(Boolean).join(' · '))}</div></div>`).join('');
     box.querySelectorAll('.acit').forEach(el=>el.addEventListener('mousedown',ev=>{ev.preventDefault();choose(items[+el.dataset.i]);}));
   };
+  const msg=(h)=>{if(!box){box=document.createElement('div');box.className='acbox';field.appendChild(box);}box.innerHTML=h;};
   const search=async(q)=>{
+    const my=++seq;
     try{
       const r=await fetch('/api/geocode?q='+encodeURIComponent(q));
-      const j=await r.json(); items=(j&&j.sugestoes)||[]; sel=-1;
-      if(!items.length){close();return;} paint();
-    }catch(e){ close(); }
+      const j=await r.json();
+      if(my!==seq)return;                       // ignora resposta atrasada (já digitou mais)
+      items=(j&&j.sugestoes)||[]; sel=-1;
+      if(!items.length){msg('<div class="acload">Nenhum endereço encontrado para “'+esc(q)+'”.</div>');return;}
+      paint();
+    }catch(e){ if(my===seq)close(); }
   };
   inp.addEventListener('input',()=>{
-    const q=inp.value.trim(); ped[side].lat=undefined; ped[side].lng=undefined;
-    clearTimeout(t);
+    const q=inp.value.trim(); if(onClear)onClear();
+    clearTimeout(t); seq++;                      // invalida buscas pendentes
     if(q.length<3){close();return;}
-    if(box)box.innerHTML='<div class="acload">Buscando endereços…</div>';
-    t=setTimeout(()=>search(q),320);
+    msg('<div class="acload">Buscando endereços…</div>');
+    t=setTimeout(()=>search(q),160);
   });
   inp.addEventListener('keydown',e=>{
     if(!box||!items.length)return;
@@ -430,40 +431,33 @@ function attachGeocode(side){
   });
   inp.addEventListener('blur',()=>setTimeout(close,180));
 }
-/* distância a partir das coordenadas (sempre funciona); refina com a rota do Google se disponível */
+/* distância a partir das coordenadas (OpenStreetMap) */
 function haversineLocal(a,b){const R=6371,r=x=>x*Math.PI/180;const dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng);const s=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
 function computeDist(){
-  if(window.google&&gmap)drawMarkers(window.google);
   if(ped.o.lat&&ped.d.lat){
-    const km=Math.round(haversineLocal(ped.o,ped.d)*1.35*10)/10||1.2;
+    const km=Math.round(haversineLocal(ped.o,ped.d)*1.35*10)/10||1.2;   // linha reta × fator de via
     ped._km=km; ped._min=Math.max(4,Math.round(km/22*60));
-    if(window.google&&dirService)updateRoute(window.google); // refina com a rota real (se Directions estiver ativa)
   }
   updateQuote();
 }
 function quotePlaceholder(){return `<div class="qbadge">🏍️ LEVA Moto</div><div class="empty" style="padding:24px 0">Preencha coleta e entrega para ver o valor.</div>`;}
+// mapa SOMENTE para visualização: mostra o endereço-base da cliente (OpenStreetMap, sem chave)
 function initPedirMap(){
-  loadMaps().then(g=>{
-    gmap=new g.maps.Map($('#map'),{center:MGCENTER,zoom:14,disableDefaultUI:true,zoomControl:true,
-      styles:[{elementType:'geometry',stylers:[{color:'#1a1a1a'}]},{elementType:'labels.text.stroke',stylers:[{color:'#0a0a0a'}]},{elementType:'labels.text.fill',stylers:[{color:'#9a9a9a'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#2b2b2b'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e1a1a'}]},{featureType:'poi',stylers:[{visibility:'off'}]}]});
-    dirService=new g.maps.DirectionsService();
-    dirRenderer=new g.maps.DirectionsRenderer({map:gmap,suppressMarkers:true,polylineOptions:{strokeColor:'#C6FF00',strokeWeight:5,strokeOpacity:.9}});
-    if(ped.o.lat||ped.d.lat)drawMarkers(g);           // reposiciona marcadores se já havia endereços escolhidos
-  }).catch(()=>{ const m=$('#map'); if(m)m.innerHTML='<div class="maptip">🗺️ Mapa indisponível no momento — o pedido e o cálculo do valor continuam funcionando normalmente.</div>'; });
-}
-function drawMarkers(g){
-  const mk=(pos,color)=>new g.maps.Marker({position:pos,map:gmap,icon:{path:g.maps.SymbolPath.CIRCLE,scale:8,fillColor:color,fillOpacity:1,strokeColor:'#050505',strokeWeight:2}});
-  if(ped.o.lat){if(mkO)mkO.setMap(null);mkO=mk({lat:ped.o.lat,lng:ped.o.lng},'#C6FF00');}
-  if(ped.d.lat){if(mkD)mkD.setMap(null);mkD=mk({lat:ped.d.lat,lng:ped.d.lng},'#5BC8FF');}
-  if(ped.o.lat&&ped.d.lat){const b=new g.maps.LatLngBounds();b.extend(ped.o);b.extend(ped.d);gmap.fitBounds(b,80);}
-  else if(ped.o.lat)gmap.setCenter({lat:ped.o.lat,lng:ped.o.lng});
-}
-function updateRoute(g){
-  if(!(ped.o.lat&&ped.d.lat)){updateQuote();return;}
-  dirService.route({origin:{lat:ped.o.lat,lng:ped.o.lng},destination:{lat:ped.d.lat,lng:ped.d.lng},travelMode:g.maps.TravelMode.DRIVING},(r,st)=>{
-    if(st==='OK'){dirRenderer.setDirections(r);const leg=r.routes[0].legs[0];ped._km=Math.round(leg.distance.value/100)/10;ped._min=Math.round(leg.duration.value/60);}
-    updateQuote();
-  });
+  const el=$('#map'); if(!el)return;
+  const end=(USER&&USER.endereco)||null;
+  if(!(end&&end.lat&&end.lng)){
+    el.innerHTML='<div class="maptip">🏠 Cadastre seu endereço no <b>Perfil</b> para ver seu local aqui. O pedido e o cálculo do valor funcionam normalmente.</div>';
+    return;
+  }
+  loadLeaflet().then(L=>{
+    if(!document.getElementById('map'))return;
+    if(homeMap){try{homeMap.remove();}catch(e){}}
+    homeMap=L.map(el,{zoomControl:true,attributionControl:false,scrollWheelZoom:false}).setView([end.lat,end.lng],15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(homeMap);
+    L.circleMarker([end.lat,end.lng],{radius:10,color:'#0a0a0a',weight:2,fillColor:'#C6FF00',fillOpacity:1}).addTo(homeMap)
+      .bindPopup('🏠 '+esc(end.rua)+', '+esc(end.numero)+'<br>'+esc(end.bairro));
+    setTimeout(()=>{try{homeMap.invalidateSize();}catch(e){}},200);
+  }).catch(()=>{ el.innerHTML='<div class="maptip">🗺️ Mapa indisponível no momento — o pedido funciona normalmente.</div>'; });
 }
 function updateQuote(){
   const c=+($('#i_c')?.value),l=+($('#i_l')?.value),a=+($('#i_a')?.value),p=+($('#i_p')?.value);
@@ -695,15 +689,36 @@ function renderCorridasAdmin(rides){
 }
 
 /* ================= PERFIL / AVALIAÇÃO ================= */
+let perfEnd={};
 async function perfil(){ setBody('<div class="empty">Carregando…</div>'); try{const u=await api('/me');USER=u;
+  const e=u.endereco||{}; perfEnd={lat:e.lat,lng:e.lng};
+  const endBlock=u.role==='cliente'?`<div class="card"><h3>Meu endereço (base do mapa)</h3>
+    <div class="sub">Usado como ponto de referência no mapa ao pedir uma corrida.</div>
+    <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="pf_rua" value="${esc(e.rua||'')}" placeholder="Comece a digitar e escolha a sugestão…" autocomplete="off"></div>
+    <div class="row2"><div class="field"><label>Número <span class="req">*</span></label><input id="pf_num" value="${esc(e.numero||'')}"></div>
+      <div class="field"><label>Bairro <span class="req">*</span></label><input id="pf_bai" value="${esc(e.bairro||'')}"></div></div>
+    <div class="row2"><div class="field"><label>Cidade <span class="req">*</span></label><input id="pf_cid" value="${esc(e.cidade||'')}"></div>
+      <div class="field"><label>UF <span class="req">*</span></label><input id="pf_uf" maxlength="2" style="text-transform:uppercase" value="${esc(e.uf||'')}"></div></div>
+    <button class="btn btn-neon btn-sm" id="pf_saveend">Salvar endereço</button></div>`:'';
   setBody(`<div class="card"><h3>Meus dados</h3><div class="list">
     <div class="item"><div class="main"><div class="t">Nome</div><div class="d">${esc(u.nome)}</div></div></div>
     <div class="item"><div class="main"><div class="t">E-mail</div><div class="d">${esc(u.email)}</div></div></div>
     <div class="item"><div class="main"><div class="t">WhatsApp</div><div class="d">${esc(u.telefone||'-')}</div></div></div>
     <div class="item"><div class="main"><div class="t">CPF</div><div class="d">${esc(u.cpf||'-')}</div></div></div>
+    ${u.role==='cliente'?`<div class="item"><div class="main"><div class="t">Endereço</div><div class="d">${e.rua?esc(e.rua)+', '+esc(e.numero||'')+' — '+esc(e.bairro||'')+(e.cidade?', '+esc(e.cidade)+(e.uf?'/'+esc(e.uf):''):''):'<span class="muted">não cadastrado</span>'}</div></div></div>`:''}
     ${u.role==='motoboy'?`<div class="item"><div class="main"><div class="t">Moto</div><div class="d">${esc(u.modelo||'-')} · placa ${esc(u.placa||'-')} · CNH ${esc(u.cnh||'-')}</div></div></div>`:''}
     <div class="item"><div class="main"><div class="t">Avaliação</div><div class="d">${u.ratingCount?('★'+(u.rating/u.ratingCount).toFixed(1)+' ('+u.ratingCount+')'):'Sem avaliações'}</div></div></div>
-  </div></div>`);}catch(e){setBody('<div class="banner bad">Erro</div>');}}
+  </div></div>${endBlock}`);
+  if(u.role==='cliente'){
+    attachGeocode('pf',(s)=>{perfEnd={lat:s.lat,lng:s.lng};},()=>{perfEnd.lat=undefined;perfEnd.lng=undefined;});
+    $('#pf_saveend').onclick=async()=>{
+      const v=id=>($('#'+id)?$('#'+id).value.trim():'');
+      const end={rua:v('pf_rua'),numero:v('pf_num'),bairro:v('pf_bai'),cidade:v('pf_cid'),uf:v('pf_uf').toUpperCase(),lat:perfEnd.lat,lng:perfEnd.lng};
+      if(!(end.rua&&end.numero&&end.bairro&&end.cidade)){toast('Preencha rua, número, bairro e cidade',1);return;}
+      loading(true);try{USER=await api('/me/endereco',{method:'POST',body:end});loading(false);toast('Endereço salvo! Já aparece no mapa.');}catch(err){loading(false);toast('Erro ao salvar endereço',1);}
+    };
+  }
+}catch(e){setBody('<div class="banner bad">Erro</div>');}}
 function estrelas(host,cb){host.innerHTML=[1,2,3,4,5].map(n=>`<button data-n="${n}">★</button>`).join('');let sel=0;const paint=k=>host.querySelectorAll('button').forEach((b,i)=>b.className=i<k?'on':'');host.querySelectorAll('button').forEach(b=>{b.onmouseenter=()=>paint(+b.dataset.n);b.onmouseleave=()=>paint(sel);b.onclick=()=>{sel=+b.dataset.n;paint(sel);cb(sel);};});}
 async function avaliar(id,nota){try{await api('/rides/'+id+'/rate',{method:'POST',body:{nota}});toast('Avaliação: ★'+nota);}catch(e){toast('Erro ao avaliar',1);}}
 
