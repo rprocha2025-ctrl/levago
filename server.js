@@ -106,7 +106,8 @@ const role = r => (req, res, next) => req.user.role === r ? next() : res.status(
 const pub = u => ({ email: u.email, nome: u.nome, telefone: u.telefone, cpf: u.cpf, genero: u.genero, role: u.role,
   rating: u.rating, ratingCount: u.rating_count, ridesCount: u.rides_count, placa: u.placa, modelo: u.modelo, cnh: u.cnh,
   saldo: u.saldo, metaDia: u.meta_dia, metaSemana: u.meta_semana,
-  banco: u.banco_chave ? { tipo: u.banco_tipo, chave: u.banco_chave } : null, createdAt: u.created_at });
+  banco: u.banco_chave ? { tipo: u.banco_tipo, chave: u.banco_chave } : null,
+  endereco: u.endereco ? JSON.parse(u.endereco) : null, createdAt: u.created_at });
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const genCode = () => String(Math.floor(100000 + Math.random() * 900000));
 async function sendEmail(to, subject, text) {
@@ -130,9 +131,19 @@ function labelDe(s) {
   if (s.cidade) parts.push(s.cidade + (s.uf ? '/' + s.uf : ''));
   return parts.join(' · ') || s.rua || '';
 }
+// região (bbox) de Mogi Guaçu e cidades vizinhas — limita a busca para não "fugir" do que foi digitado
+const BBOX = { minLon: -47.25, minLat: -22.70, maxLon: -46.55, maxLat: -22.00 };
+// usa só o que foi digitado antes da vírgula (a rua). bairro/cidade vêm da sugestão escolhida.
+const soRua = q => String(q).split(',')[0].replace(/\s+/g, ' ').trim();
+async function fetchT(url, ms = 2600) {
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } }); }
+  finally { clearTimeout(t); }
+}
 async function viaPhoton(q) {
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=8&lat=${MGCENTER.lat}&lon=${MGCENTER.lng}`;
-  const r = await fetch(url, { headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } });
+  // bbox restringe à região; lat/lon ordena por proximidade do centro
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=10&lat=${MGCENTER.lat}&lon=${MGCENTER.lng}&bbox=${BBOX.minLon},${BBOX.minLat},${BBOX.maxLon},${BBOX.maxLat}`;
+  const r = await fetchT(url);
   const j = await r.json();
   return ((j && j.features) || [])
     .filter(f => ((f.properties && f.properties.countrycode) || 'BR') === 'BR')
@@ -142,14 +153,16 @@ async function viaPhoton(q) {
       const s = { rua: p.street || p.name || '', numero: p.housenumber || '',
         bairro: p.district || p.suburb || p.neighbourhood || p.locality || p.quarter || '',
         cidade: p.city || p.town || p.village || p.municipality || p.county || '',
-        estado, uf: toUF(estado), lat: g[1], lng: g[0] };
+        estado, uf: toUF(estado), lat: g[1], lng: g[0], tipo: p.osm_value || p.type || '' };
       s.label = labelDe(s); return s;
     })
     .filter(s => s.rua && s.lat != null);
 }
 async function viaNominatim(q) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=8&addressdetails=1&countrycodes=br&accept-language=pt-BR`;
-  const r = await fetch(url, { headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } });
+  // viewbox + bounded=1 força os resultados a ficarem dentro da região
+  const vb = `${BBOX.minLon},${BBOX.maxLat},${BBOX.maxLon},${BBOX.minLat}`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=10&addressdetails=1&countrycodes=br&accept-language=pt-BR&viewbox=${vb}&bounded=1`;
+  const r = await fetchT(url);
   const j = await r.json();
   return (Array.isArray(j) ? j : []).map(it => {
     const a = it.address || {};
@@ -163,13 +176,30 @@ async function viaNominatim(q) {
     s.label = labelDe(s); return s;
   }).filter(s => s.rua && !isNaN(s.lat));
 }
+// ordena por relevância: ruas cujo nome realmente contém as palavras digitadas vêm primeiro
+function ranquear(sug, termo) {
+  const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const palavras = norm(termo).split(/\s+/).filter(w => w.length > 1);
+  const score = s => { const r = norm(s.rua); let n = 0; for (const w of palavras) if (r.includes(w)) n++; return n; };
+  return sug.map(s => ({ s, n: score(s) })).sort((a, b) => b.n - a.n).map(x => x.s);
+}
+// cache simples em memória (60s) para respostas instantâneas em re-digitação
+const geoCache = new Map();
 app.get('/api/geocode', async (req, res) => {
-  const q = String(req.query.q || '').trim();
+  const q = soRua(req.query.q || '');
   if (q.length < 3) return res.json({ sugestoes: [] });
+  const key = q.toLowerCase();
+  const hit = geoCache.get(key);
+  if (hit && Date.now() - hit.t < 60000) return res.json({ sugestoes: hit.v });
   let sug = [];
   try { sug = await viaPhoton(q); } catch (e) { /* tenta fallback */ }
   if (!sug.length) { try { sug = await viaNominatim(q); } catch (e) { /* vazio */ } }
-  res.json({ sugestoes: sug.slice(0, 6) });
+  // remove duplicados (mesma rua+bairro) e ranqueia pela relevância do texto digitado
+  const vistos = new Set();
+  sug = ranquear(sug, q).filter(s => { const k = (s.rua + '|' + s.bairro).toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true; });
+  const out = sug.slice(0, 6);
+  geoCache.set(key, { t: Date.now(), v: out });
+  res.json({ sugestoes: out });
 });
 
 app.post('/api/auth/register', async (req, res) => {
@@ -188,6 +218,13 @@ app.post('/api/auth/register', async (req, res) => {
     if (!b.modelo) erros.modelo = 'Obrigatório';
     if (!b.cnh) erros.cnh = 'Obrigatório';
   }
+  // endereço-base do cliente (usado no mapa de visualização)
+  let endereco = null;
+  if (b.role === 'cliente') {
+    const e = b.endereco || {};
+    if (!e.rua || !e.numero || !e.bairro || !e.cidade) erros.endereco = 'Informe seu endereço (rua, número, bairro e cidade)';
+    else endereco = JSON.stringify({ rua: e.rua, numero: e.numero, bairro: e.bairro, cidade: e.cidade, uf: e.uf || '', lat: e.lat, lng: e.lng });
+  }
   if (Object.keys(erros).length) return res.status(400).json({ erros });
   if (Users.get.get(email)) return res.status(409).json({ erros: { email: 'Este e-mail já está cadastrado' } });
   const senha_hash = await bcrypt.hash(String(b.senha), 10);
@@ -195,6 +232,7 @@ app.post('/api/auth/register', async (req, res) => {
     email, nome: String(b.nome).trim(), telefone: b.telefone, cpf: b.cpf, genero: b.genero, role: b.role,
     senha_hash, placa: b.role==='motoboy'? String(b.placa).toUpperCase():null,
     modelo: b.role==='motoboy'? b.modelo:null, cnh: b.role==='motoboy'? b.cnh:null,
+    endereco,
     created_at: new Date().toISOString(),
   });
   const u = Users.get.get(email);
@@ -384,6 +422,15 @@ app.post('/api/rides/:id/gorjeta', auth, role('cliente'), (req, res) => {
   res.json(rideOut(Rides.get.get(r.id), 'cliente'));
 });
 
+// cliente atualiza o endereço-base (mapa de visualização)
+app.post('/api/me/endereco', auth, (req, res) => {
+  const e = req.body || {};
+  if (!e.rua || !e.numero || !e.bairro || !e.cidade) return res.status(400).json({ error: 'endereco_incompleto' });
+  const endereco = JSON.stringify({ rua: e.rua, numero: e.numero, bairro: e.bairro, cidade: e.cidade, uf: e.uf || '', lat: e.lat, lng: e.lng });
+  Users.updateEndereco.run(endereco, req.user.email);
+  res.json(pub(Users.get.get(req.user.email)));
+});
+
 // ---- motoboy: metas e banco ----
 app.post('/api/me/metas', auth, role('motoboy'), (req, res) => {
   Users.updateMetas.run(+req.body?.metaDia||0, +req.body?.metaSemana||0, req.user.email);
@@ -436,13 +483,14 @@ function seedDemoIfEmpty(){
   try{
     if(Users.all.all().length>0) return;
     const demo=[
-      {email:'cliente@leva.com',senha:'123456',role:'cliente',nome:'Carla Souza',genero:'f',telefone:'(19) 99999-0001',cpf:'111.111.111-11'},
+      {email:'cliente@leva.com',senha:'123456',role:'cliente',nome:'Carla Souza',genero:'f',telefone:'(19) 99999-0001',cpf:'111.111.111-11',endereco:{rua:'Avenida Bandeirantes',numero:'500',bairro:'Vila Pinheiro',cidade:'Mogi Guaçu',uf:'SP',lat:-22.3553508,lng:-46.9446673}},
       {email:'motoboy@leva.com',senha:'123456',role:'motoboy',nome:'Motoboy Demo',genero:'m',telefone:'(19) 99999-0002',cpf:'222.222.222-22',placa:'ABC1D23',modelo:'Honda CG 160',cnh:'01234567890'},
       {email:'admin@leva.com',senha:'admin123',role:'admin',nome:'Admin LEVA',genero:'n',telefone:'(19) 99999-0003',cpf:'333.333.333-33'},
     ];
     for(const d of demo){
       Users.insert.run({email:d.email,nome:d.nome,telefone:d.telefone,cpf:d.cpf,genero:d.genero,role:d.role,
         senha_hash:bcrypt.hashSync(d.senha,10),placa:d.placa||null,modelo:d.modelo||null,cnh:d.cnh||null,
+        endereco:d.endereco?JSON.stringify(d.endereco):null,
         created_at:new Date().toISOString()});
     }
     console.log('Contas demo criadas.');

@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   meta_dia REAL DEFAULT 0,
   meta_semana REAL DEFAULT 0,
   banco_tipo TEXT, banco_chave TEXT,
+  endereco TEXT,
   created_at TEXT NOT NULL
 );
 
@@ -62,6 +63,7 @@ for (const col of [
   'espera_min INTEGER DEFAULT 0', 'gorjeta REAL DEFAULT 0',
   'foto_coleta TEXT', 'foto_entrega TEXT', 'aguardou_em TEXT',
 ]) { try { db.exec(`ALTER TABLE rides ADD COLUMN ${col}`); } catch (e) { /* já existe */ } }
+try { db.exec('ALTER TABLE users ADD COLUMN endereco TEXT'); } catch (e) { /* já existe */ }
 
 export default db;
 
@@ -69,12 +71,13 @@ export default db;
 export const Users = {
   get: db.prepare('SELECT * FROM users WHERE email = ?'),
   insert: db.prepare(`INSERT INTO users
-    (email,nome,telefone,cpf,genero,role,senha_hash,status,rating,rating_count,rides_count,placa,modelo,cnh,saldo,meta_dia,meta_semana,banco_tipo,banco_chave,created_at)
-    VALUES (@email,@nome,@telefone,@cpf,@genero,@role,@senha_hash,'ativo',0,0,0,@placa,@modelo,@cnh,0,0,0,NULL,NULL,@created_at)`),
+    (email,nome,telefone,cpf,genero,role,senha_hash,status,rating,rating_count,rides_count,placa,modelo,cnh,saldo,meta_dia,meta_semana,banco_tipo,banco_chave,endereco,created_at)
+    VALUES (@email,@nome,@telefone,@cpf,@genero,@role,@senha_hash,'ativo',0,0,0,@placa,@modelo,@cnh,0,0,0,NULL,NULL,@endereco,@created_at)`),
   all: db.prepare('SELECT * FROM users ORDER BY created_at DESC'),
   updateSenha: db.prepare('UPDATE users SET senha_hash=? WHERE email=?'),
   updateMetas: db.prepare('UPDATE users SET meta_dia=?, meta_semana=? WHERE email=?'),
   updateBanco: db.prepare('UPDATE users SET banco_tipo=?, banco_chave=? WHERE email=?'),
+  updateEndereco: db.prepare('UPDATE users SET endereco=? WHERE email=?'),
   addSaldoRide: db.prepare('UPDATE users SET saldo = saldo + ?, rides_count = rides_count + 1 WHERE email=?'),
   addSaldo: db.prepare('UPDATE users SET saldo = saldo + ? WHERE email=?'),
   addRating: db.prepare('UPDATE users SET rating = rating + ?, rating_count = rating_count + 1 WHERE email=?'),
