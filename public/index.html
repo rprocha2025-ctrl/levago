@@ -1,108 +1,507 @@
 <!doctype html>
-<html lang="pt-BR"><head>
+<html lang="pt-BR">
+<head>
 <meta charset="utf-8">
-<title>LEVA Plataforma</title>
+<title>LEVA Entregas</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="LEVA — entregas rápidas por motocicleta. Documentos, encomendas e mais, com agilidade, segurança e rastreamento.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Inter:wght@400;500;600&display=swap">
 <style>
-:root{color-scheme:dark;
-  --black:#050505;--black2:#0A0A0A;--graf:#141414;--card:#1E1E1E;--card2:#242424;
-  --line:#2B2B2B;--line2:#363636;--white:#FFFFFF;--gray:#A7A7A7;--gray2:#6E6E6E;
-  --neon:#C6FF00;--neon-dim:#9BC900;--ok:#39D98A;--warn:#FFB020;--bad:#FF5470;--blue:#5BC8FF;
-  --display:"Montserrat",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;--r:14px;--r-sm:10px;}
-*{box-sizing:border-box}html{scroll-behavior:smooth}
-body{margin:0;background:var(--black);color:var(--white);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
-h1,h2,h3,h4{font-family:var(--display);margin:0;line-height:1.08;letter-spacing:-.02em}
-p{margin:0}a{color:inherit}button{font-family:inherit}
-.neon{color:var(--neon)}.muted{color:var(--gray)}.small{font-size:12.5px}.ok{color:var(--ok)}
+:root{
+  color-scheme:dark;
+  --black:#050505; --black2:#0A0A0A; --panel:#0D0D0D; --panel2:#101010;
+  --line:#1C1C1C; --line2:#262626; --white:#FFFFFF; --gray:#A0A0A0; --gray2:#6E6E6E;
+  --neon:#C6FF00; --neon-dim:#9BC900;
+  --display:"Montserrat",system-ui,sans-serif;
+  --body:"Inter",system-ui,sans-serif;
+  --r:14px; --r-sm:10px; --maxw:1200px;
+  /* escala tipográfica harmônica */
+  --fs-hero:clamp(32px,4.4vw,50px);
+  --fs-final:clamp(38px,6vw,72px);
+  --fs-h2:clamp(26px,3.4vw,40px);
+  --fs-h3:17px;
+  --fs-lead:18px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--black);color:var(--white);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,h4{font-family:var(--display);margin:0;line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+a{color:inherit;text-decoration:none}
+img{max-width:100%}
+.wrap{max-width:var(--maxw);margin:0 auto;padding-inline:24px}
+.neon{color:var(--neon)}
+.eyebrow{font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:var(--neon)}
+.muted{color:var(--gray)}
 ::selection{background:var(--neon);color:#000}
-:focus-visible{outline:2px solid var(--neon);outline-offset:2px;border-radius:6px}
-.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;cursor:pointer;font-family:var(--display);font-weight:700;font-size:13.5px;letter-spacing:.02em;text-transform:uppercase;padding:13px 22px;border-radius:999px;transition:.16s}
-.btn-neon{background:var(--neon);color:#050505}.btn-neon:hover{transform:translateY(-1px);box-shadow:0 10px 26px -10px rgba(198,255,0,.5)}
-.btn-out{background:transparent;color:var(--white);border:1.5px solid var(--line2)}.btn-out:hover{border-color:var(--neon);color:var(--neon)}
-.btn-ghost{background:var(--card);color:var(--white);border:1px solid var(--line)}.btn-ghost:hover{border-color:var(--neon)}
-.btn-block{width:100%}.btn-sm{padding:9px 15px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--neon);outline-offset:3px;border-radius:6px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;cursor:pointer;font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.02em;text-transform:uppercase;padding:15px 26px;border-radius:999px;transition:transform .18s ease,box-shadow .18s ease,background .18s,color .18s,border-color .18s}
+.btn .arw{transition:transform .18s ease}
+.btn:hover .arw{transform:translateX(4px)}
+.btn-neon{background:var(--neon);color:#050505;box-shadow:0 0 0 rgba(198,255,0,0)}
+.btn-neon:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 10px 30px -8px rgba(198,255,0,.5)}
+.btn-out{background:transparent;color:var(--white);border:1.5px solid var(--line2)}
+.btn-out:hover{border-color:var(--neon);color:var(--neon);transform:translateY(-2px)}
+.btn-block{width:100%}
+
+/* reveal (safe: visible without JS) */
+.js .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+.js .reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.js .reveal{opacity:1;transform:none;transition:none}}
+
+/* logo */
+.logo{display:inline-flex;align-items:center}
+.logo img{height:30px;width:auto;display:block}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:80;background:rgba(5,5,5,.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.nav-in{display:flex;align-items:center;height:72px;gap:26px}
+.nav-links{display:flex;gap:30px;margin-left:auto;font-size:14px;font-weight:500;color:var(--gray)}
+.nav-links a{position:relative;padding:4px 0;transition:color .16s}
+.nav-links a::after{content:"";position:absolute;left:0;right:100%;bottom:-2px;height:2px;background:var(--neon);transition:right .22s ease}
+.nav-links a:hover{color:var(--white)}
+.nav-links a:hover::after{right:0}
+.nav .btn{margin-left:26px;padding:12px 20px}
+.burger{margin-left:auto;display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:8px}
+.burger span{width:24px;height:2px;background:var(--white);transition:.2s}
+@media(max-width:920px){
+  .nav-links,.nav>.wrap>.nav-in>.btn{display:none}
+  .burger{display:flex}
+}
+/* mobile drawer */
+.drawer{position:fixed;inset:0;z-index:90;background:rgba(5,5,5,.97);backdrop-filter:blur(6px);display:flex;flex-direction:column;padding:26px;transform:translateY(-100%);transition:transform .3s ease;visibility:hidden}
+.drawer.open{transform:none;visibility:visible}
+.drawer .top{display:flex;align-items:center}
+.drawer .close{margin-left:auto;background:none;border:none;color:var(--white);font-size:30px;cursor:pointer;line-height:1}
+.drawer nav{display:flex;flex-direction:column;gap:6px;margin-top:30px}
+.drawer nav a{font-family:var(--display);font-weight:700;font-size:26px;padding:12px 0;border-bottom:1px solid var(--line);color:var(--white)}
+.drawer nav a .n{color:var(--neon);font-size:13px;margin-right:12px;font-family:var(--body)}
+.drawer .btn{margin-top:26px}
+
+/* section framing */
+section{position:relative}
+.sec{padding-block:100px}
+.sec-eyebrow{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.sec-eyebrow::before{content:"";width:34px;height:2px;background:var(--neon)}
+h2.big{font-size:var(--fs-h2);font-weight:800;text-transform:uppercase;line-height:1.08}
+
+/* HERO */
+.hero{position:relative;overflow:hidden;isolation:isolate;background:var(--black);min-height:640px;padding-top:158px;padding-bottom:104px}
+.hero .cover{position:absolute;inset:0;z-index:-2;background:url('leva-rider.jpg') center center/cover no-repeat}
+.hero .scrim{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(5,5,5,.8),rgba(5,5,5,.5) 40%,rgba(5,5,5,.22) 66%,rgba(5,5,5,.42)),linear-gradient(0deg,rgba(5,5,5,.62),transparent 52%)}
+.hero-content{position:relative;z-index:1;max-width:700px}
+.hero h1{font-size:var(--fs-hero);line-height:1.06;font-weight:900;text-transform:uppercase;letter-spacing:-.03em;color:#fff;text-shadow:0 2px 16px rgba(0,0,0,.65),0 1px 3px rgba(0,0,0,.5)}
+.hero .eyebrow{text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.hero h1 .l1{color:var(--white);display:block}
+.hero h1 .l2{color:var(--white);display:block}
+.hero h1 .tw{color:var(--neon);white-space:nowrap}
+.hero .sub{margin-top:24px;font-size:var(--fs-lead);color:#D6DCE4;max-width:48ch;text-shadow:0 1px 10px rgba(0,0,0,.65)}
+.hero .cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:34px}
+.hero .tags{display:flex;gap:10px;margin-top:30px;flex-wrap:wrap}
+.hero .tag{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line2);border-radius:999px;padding:8px 15px;font-size:12.5px;color:var(--gray)}
+.hero .tag b{color:var(--white);font-weight:600}
+.hero .tag .dot{width:6px;height:6px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon)}
+/* hero visual */
+.stage{position:relative;aspect-ratio:1/.86;border:1px solid var(--line);border-radius:22px;background:
+  linear-gradient(180deg,var(--panel2),var(--black));overflow:hidden}
+.stage .grid-bg{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:44px 44px;opacity:.5;mask-image:radial-gradient(120% 100% at 70% 40%,#000,transparent 78%)}
+.stage .rider-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:90% 48%}
+.stage::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,rgba(5,5,5,.6));pointer-events:none}
+.stage .speedlines{z-index:1}.stage .chip{z-index:2}
+.about-visual img{position:absolute;inset:0;margin:auto;width:52%;height:46%;object-fit:contain}
+/* feixe de luz neon (Sobre) */
+.about-beam{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:5}
+.about-beam path{fill:none;stroke:var(--neon)}
+.about-beam .bm-run{stroke-width:3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px var(--neon)) drop-shadow(0 0 13px rgba(198,255,0,.55));stroke-dasharray:230 1730;animation:beamrun 4.8s linear infinite}
+@keyframes beamrun{from{stroke-dashoffset:0}to{stroke-dashoffset:-1960}}
+@media (prefers-reduced-motion:reduce){.about-beam .bm-run{animation:none;opacity:.45}}
+@media(max-width:920px){.about-beam{display:none}}
+.speedlines{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.speedlines i{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--neon));border-radius:2px;opacity:.0;animation:zoom 2.6s linear infinite}
+@keyframes zoom{0%{transform:translateX(-120px);opacity:0}12%{opacity:.9}80%{opacity:.5}100%{transform:translateX(120px);opacity:0}}
+.stage .chip{position:absolute;left:18px;bottom:18px;display:flex;align-items:center;gap:9px;background:rgba(5,5,5,.7);border:1px solid var(--line2);border-radius:999px;padding:9px 14px;font-size:12px;color:var(--white);backdrop-filter:blur(6px)}
+.stage .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon);animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.35}}
+@media(max-width:920px){.hero{min-height:580px}.hero .sub{max-width:none}.hero .scrim{background:linear-gradient(0deg,rgba(5,5,5,.9),rgba(5,5,5,.55) 55%,rgba(5,5,5,.78)),linear-gradient(90deg,rgba(5,5,5,.72),rgba(5,5,5,.32))}}
+
+/* BENEFITS */
+.benefits{border-block:1px solid var(--line);background:var(--black2)}
+.ben-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+.ben{padding:34px 28px;display:flex;gap:16px;align-items:flex-start;border-right:1px solid var(--line)}
+.ben:last-child{border-right:none}
+.ben .ic{flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--neon)}
+.ben h3{font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
+.ben p{font-size:13.5px;color:var(--gray);margin-top:5px}
+@media(max-width:920px){.ben-grid{grid-template-columns:1fr 1fr}.ben:nth-child(2){border-right:none}.ben{border-bottom:1px solid var(--line)}}
+@media(max-width:540px){.ben-grid{grid-template-columns:1fr}.ben{border-right:none}}
+
+/* SOBRE */
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;position:relative}
+.about h2{font-size:var(--fs-h2);font-weight:800;text-transform:uppercase;line-height:1.08}
+.about p{color:var(--gray);margin-top:20px;font-size:var(--fs-lead);max-width:52ch}
+.about .btn{margin-top:30px}
+.about-visual{position:relative;aspect-ratio:4/3.4;border:none;border-radius:20px;overflow:hidden;background:#000000}
+.about-visual .diag{display:none}
+.about-visual .diag i{position:absolute;height:3px;width:160%;background:var(--neon);opacity:.14;transform:rotate(-24deg)}
+.about-visual svg.rider{position:absolute;inset:0;width:100%;height:100%}
+@media(max-width:920px){.about-grid{grid-template-columns:1fr;gap:32px}}
+
+/* SERVIÇOS */
+.serv-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;margin-bottom:44px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.card{background:var(--black2);border:1px solid var(--line);border-radius:var(--r);padding:28px 24px;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.card:hover{transform:translateY(-6px);border-color:var(--neon);box-shadow:0 20px 44px -26px rgba(198,255,0,.35)}
+.card .ic{width:52px;height:52px;border-radius:13px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--neon);margin-bottom:20px}
+.card h3{font-size:var(--fs-h3);font-weight:800;text-transform:uppercase;letter-spacing:.01em}
+.card p{font-size:14px;color:var(--gray);margin-top:9px}
+@media(max-width:920px){.cards{grid-template-columns:1fr 1fr}}
+@media(max-width:540px){.cards{grid-template-columns:1fr}}
+
+/* COMO FUNCIONA */
+.how{background:var(--black2);border-block:1px solid var(--line)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;position:relative}
+.steps::before{content:"";position:absolute;top:30px;left:8%;right:8%;height:2px;background:linear-gradient(90deg,var(--line2),var(--neon),var(--line2));opacity:.5}
+.step{position:relative}
+.step .num{width:60px;height:60px;border-radius:50%;background:var(--black);border:1.5px solid var(--neon);color:var(--neon);font-family:var(--display);font-weight:800;font-size:20px;display:grid;place-items:center;position:relative;z-index:1}
+.step h3{font-size:var(--fs-h3);font-weight:800;text-transform:uppercase;margin:18px 0 8px}
+.step p{font-size:14px;color:var(--gray)}
+@media(max-width:920px){.steps{grid-template-columns:1fr 1fr;gap:30px 22px}.steps::before{display:none}}
+@media(max-width:540px){.steps{grid-template-columns:1fr}}
+
+/* EMPRESAS */
+.biz{background:
+  radial-gradient(90% 120% at 100% 0%, rgba(198,255,0,.07), transparent 50%),var(--black)}
+.biz-in{border:1px solid var(--line2);border-radius:24px;padding:56px 48px;background:linear-gradient(180deg,var(--panel2),var(--black));position:relative;overflow:hidden}
+.biz-in::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border:1px solid var(--neon);opacity:.12;border-radius:50%}
+.biz-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:40px;align-items:center;position:relative}
+.biz h2{font-size:var(--fs-h2);font-weight:900;text-transform:uppercase;line-height:1.08}
+.biz p{color:var(--gray);margin-top:20px;font-size:var(--fs-lead);max-width:48ch}
+.biz .side{display:flex;flex-direction:column;gap:14px}
+.biz .side .row{display:flex;align-items:center;gap:13px;font-size:14.5px;color:var(--white)}
+.biz .side .row .k{width:34px;height:34px;flex:none;border-radius:9px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--neon)}
+.biz .btn{margin-top:30px}
+@media(max-width:920px){.biz-grid{grid-template-columns:1fr;gap:28px}.biz-in{padding:38px 26px}}
+
+/* CTA FINAL */
+.finalcta{position:relative;overflow:hidden;text-align:center;padding-block:120px;background:var(--black)}
+.finalcta .speedlines i{background:linear-gradient(90deg,transparent,var(--neon));opacity:0;animation:zoomwide 3s linear infinite}
+@keyframes zoomwide{0%{transform:translateX(-40vw);opacity:0}15%{opacity:.55}85%{opacity:.3}100%{transform:translateX(40vw);opacity:0}}
+.finalcta h2{font-size:var(--fs-final);line-height:1.04;font-weight:900;text-transform:uppercase;letter-spacing:-.03em;position:relative}
+.finalcta h2 span{color:var(--neon)}
+.finalcta p{color:var(--gray);font-size:var(--fs-lead);margin:20px auto 0;max-width:44ch;position:relative}
+.finalcta .btn{margin-top:36px;position:relative;font-size:16px;padding:18px 34px}
+
+/* cabeçalho centralizado de seção */
+.head-c{text-align:center;max-width:680px;margin:0 auto 46px}
+.head-c .sec-eyebrow{justify-content:center}
+.head-c p{color:var(--gray);margin-top:14px;font-size:var(--fs-lead)}
+.how-block{margin-bottom:56px;border-bottom:1px solid var(--line);padding-bottom:52px}
+.how-block .lbl{margin-bottom:36px}
+
+/* FAQ */
+.faq{max-width:840px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.faq details{background:var(--black2);border:1px solid var(--line);border-radius:14px;transition:border-color .2s}
+.faq details[open]{border-color:color-mix(in srgb,var(--neon) 55%,var(--line))}
+.faq summary{list-style:none;cursor:pointer;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-family:var(--display);font-weight:700;font-size:16px;color:#fff;transition:color .16s}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:hover{color:var(--neon)}
+.faq .plus{position:relative;width:16px;height:16px;flex:none}
+.faq .plus::before,.faq .plus::after{content:"";position:absolute;background:var(--neon);border-radius:2px}
+.faq .plus::before{left:0;top:7px;width:16px;height:2px}
+.faq .plus::after{left:7px;top:0;width:2px;height:16px;transition:transform .2s}
+.faq details[open] .plus::after{transform:scaleY(0)}
+.faq .ans{padding:0 22px 20px;color:var(--gray);font-size:14.5px;line-height:1.65}
+
+/* CONTATO */
+.contact-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px}
+.cinfo h2{font-size:var(--fs-h2);font-weight:800;text-transform:uppercase;line-height:1.08}
+.cinfo .lst{margin-top:28px;display:flex;flex-direction:column;gap:2px}
+.cinfo .it{display:flex;gap:15px;align-items:flex-start;padding:16px 0;border-bottom:1px solid var(--line)}
+.cinfo .it .k{width:42px;height:42px;flex:none;border-radius:11px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--neon)}
+.cinfo .it .lab{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray2)}
+.cinfo .it .val{font-size:15.5px;font-weight:600;color:var(--white);margin-top:2px;user-select:all}
+.form{background:var(--black2);border:1px solid var(--line);border-radius:18px;padding:30px}
+.form h3{font-size:18px;font-weight:800;text-transform:uppercase;margin-bottom:18px}
+.form .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .field{margin-bottom:14px}
-.field label{display:block;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--gray);margin-bottom:6px}
-.field label .req{color:var(--neon)}
-.field input,.field select,.field textarea{width:100%;background:var(--black2);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 13px;color:var(--white);font-family:var(--body);font-size:15px;outline:none;transition:border-color .15s}
-.field input:focus,.field select:focus{border-color:var(--neon)}
-.field input.err{border-color:var(--bad)}
-.field .fe{font-size:11.5px;color:var(--bad);margin-top:5px;display:none}.field .fe.show{display:block}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-@media(max-width:560px){.row2,.row3{grid-template-columns:1fr}}
-.top{position:sticky;top:0;z-index:40;background:rgba(5,5,5,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.top-in{display:flex;align-items:center;gap:16px;height:64px}
-.brand{font-family:var(--display);font-weight:900;font-size:22px;letter-spacing:-.03em;display:flex;align-items:center;gap:9px}
-.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--neon);box-shadow:0 0 10px var(--neon)}
-.rolebadge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:4px 10px;border-radius:999px;border:1px solid var(--line2);color:var(--neon)}
-.top .who{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:13.5px}
-.avatar{width:34px;height:34px;border-radius:50%;background:var(--card2);border:1px solid var(--line2);display:grid;place-items:center;font-family:var(--display);font-weight:800;color:var(--neon);font-size:14px}
-.hello{border-bottom:1px solid var(--line);background:radial-gradient(120% 120% at 88% -10%,rgba(198,255,0,.07),transparent 58%)}
-.hello .wrap{padding:26px 20px 22px}.hello h2{font-size:clamp(21px,3.2vw,30px);font-weight:800;text-transform:uppercase}.hello p{color:var(--gray);margin-top:6px}
-.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin:22px 0 26px;overflow-x:auto}
-.tab{background:none;border:none;color:var(--gray);padding:12px 16px;font-family:var(--display);font-weight:700;font-size:13.5px;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
-.tab:hover{color:var(--white)}.tab.active{color:var(--neon);border-bottom-color:var(--neon)}
-.card{background:var(--graf);border:1px solid var(--line);border-radius:var(--r);padding:22px}.card+.card{margin-top:16px}
-.card h3{font-size:16px;font-weight:800;text-transform:uppercase;margin-bottom:4px}.card .sub{color:var(--gray);font-size:13px;margin-bottom:18px}
-.grid{display:grid;gap:16px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
-@media(max-width:860px){.g3,.g4{grid-template-columns:1fr 1fr}}@media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
-.kpi{background:var(--graf);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
-.kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--gray)}
-.kpi .val{font-family:var(--display);font-weight:800;font-size:28px;margin-top:6px}.kpi .val small{font-size:14px;color:var(--gray)}
-.kpi .delta{font-size:12px;margin-top:4px;color:var(--gray)}.kpi.hl{border-color:color-mix(in srgb,var(--neon) 45%,var(--line))}.kpi.hl .val{color:var(--neon)}
-.list{display:flex;flex-direction:column;gap:10px}
-.item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.item .main{flex:1;min-width:180px}.item .main .t{font-family:var(--display);font-weight:700;font-size:14.5px}.item .main .d{font-size:12.5px;color:var(--gray);margin-top:3px}
-.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:4px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--gray)}
-.tag.solicitada{color:var(--warn)}.tag.aceita,.tag.a_caminho,.tag.aguardando,.tag.em_andamento{color:var(--blue)}
-.tag.concluida,.tag.paga{color:var(--ok)}.tag.cancelada{color:var(--bad)}
-.tag.cliente{color:#8ab4ff}.tag.motoboy{color:var(--neon)}.tag.admin{color:var(--warn)}
-table{width:100%;border-collapse:collapse;font-size:13.5px}th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line)}
-th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--gray);font-weight:600}.tbl-wrap{overflow-x:auto}
-.banner{border-radius:12px;padding:13px 16px;font-size:13.5px;display:flex;gap:10px;margin-bottom:16px}
-.banner.info{background:rgba(91,200,255,.08);border:1px solid #2b5566;color:#bfe6ff}
-.banner.warn{background:rgba(255,176,32,.08);border:1px solid #5c4a1f;color:#ffe0a3}
-.banner.bad{background:rgba(255,84,112,.08);border:1px solid #5c2630;color:#ffc2cd}
-.banner.ok{background:rgba(57,217,138,.08);border:1px solid #1f5c3c;color:#b9f3d4}
-.authwrap{min-height:100vh;display:grid;place-items:center;padding:28px 16px;background:radial-gradient(90% 60% at 80% 0%,rgba(198,255,0,.06),transparent 60%),var(--black)}
-.authbox{width:100%;max-width:460px}.authbox .brand{justify-content:center;font-size:30px;margin-bottom:6px}
-.authbox .tagline{text-align:center;color:var(--gray);font-size:13px;margin-bottom:24px}
-.authcard{background:var(--graf);border:1px solid var(--line);border-radius:18px;padding:26px}
-.segment{display:flex;background:var(--black2);border:1px solid var(--line);border-radius:999px;padding:4px;margin-bottom:22px}
-.segment button{flex:1;background:none;border:none;color:var(--gray);padding:10px;border-radius:999px;font-family:var(--display);font-weight:700;font-size:13px;text-transform:uppercase;cursor:pointer}
-.segment button.active{background:var(--neon);color:#050505}
-.rolepick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.rolepick .rp{border:1.5px solid var(--line);background:var(--black2);border-radius:12px;padding:14px;cursor:pointer;text-align:center}
-.rolepick .rp.sel{border-color:var(--neon);background:rgba(198,255,0,.06)}.rolepick .rp .t{font-family:var(--display);font-weight:700;font-size:13.5px;text-transform:uppercase}.rolepick .rp .d{font-size:11.5px;color:var(--gray);margin-top:2px}
-.demo{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}.demo .t{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--gray2);margin-bottom:9px}
-.demo .chips{display:flex;flex-wrap:wrap;gap:8px}.demo .chip{font-size:12px;border:1px solid var(--line2);background:var(--black2);border-radius:999px;padding:7px 12px;cursor:pointer;color:var(--gray)}.demo .chip b{color:var(--neon)}
-#map{height:300px;border-radius:14px;border:1px solid var(--line);overflow:hidden;background:#0b0f0a}
-.maptip{height:300px;display:grid;place-items:center;color:var(--gray2);text-align:center;font-size:13px;padding:20px}
-.pricebox{background:var(--black2);border:1px dashed var(--line2);border-radius:12px;padding:16px}
-.pricebox .lin{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px;color:var(--gray)}.pricebox .lin b{color:var(--white)}
-.quote{background:var(--graf);border:1px solid var(--line);border-radius:16px;padding:20px;position:sticky;top:84px}
-.qbadge{display:inline-flex;align-items:center;gap:7px;font-family:var(--display);font-weight:700;font-size:12px;text-transform:uppercase;border:1px solid var(--line2);padding:6px 12px;border-radius:999px;color:var(--neon)}
-.qprice{font-family:var(--display);font-weight:900;font-size:40px;letter-spacing:-.03em;margin:14px 0 4px}
-.qmeta{color:var(--gray);font-size:13.5px}
-.qaddr{margin:16px 0;display:flex;flex-direction:column;gap:12px}
-.qa{display:flex;gap:11px;align-items:flex-start;font-size:13.5px}
-.qa .dotg,.qa .dotb{width:11px;height:11px;border-radius:50%;margin-top:3px;flex:none}
-.qa .dotg{background:var(--neon);box-shadow:0 0 8px var(--neon)}.qa .dotb{background:var(--blue);box-shadow:0 0 8px var(--blue)}
-.meter{height:9px;background:var(--black2);border-radius:999px;overflow:hidden;border:1px solid var(--line)}.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--neon-dim),var(--neon))}
-.stars button{background:none;border:none;color:var(--line2);font-size:24px;cursor:pointer;padding:0}.stars button.on{color:var(--neon)}
-.empty{text-align:center;color:var(--gray2);padding:34px 16px;font-size:13.5px}
-.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.spacer{flex:1}hr.sep{border:none;border-top:1px solid var(--line);margin:18px 0}
-.loadbar{position:fixed;top:0;left:0;height:2px;background:var(--neon);width:0;transition:width .3s;z-index:100}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:var(--neon);color:#050505;padding:13px 20px;border-radius:12px;font-weight:700;font-family:var(--display);text-transform:uppercase;font-size:12.5px;z-index:120;transition:.25s;max-width:92vw;text-align:center}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast.bad{background:var(--bad);color:#fff}
-</style></head>
+.field label{display:block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--gray);margin-bottom:7px}
+.field input,.field select,.field textarea{width:100%;background:var(--black);border:1px solid var(--line2);border-radius:var(--r-sm);padding:13px 14px;color:var(--white);font-family:var(--body);font-size:15px;outline:none;transition:border-color .16s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--neon)}
+.field textarea{resize:vertical;min-height:96px}
+.form .btn{margin-top:6px}
+@media(max-width:920px){.contact-grid{grid-template-columns:1fr;gap:32px}.form .row{grid-template-columns:1fr}}
+
+/* FOOTER */
+footer{background:var(--black2);border-top:1px solid var(--line);padding-block:52px 30px}
+.foot-top{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:34px}
+.foot-tag{font-family:var(--display);font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--neon);margin-top:16px;font-size:14px}
+.foot-col b{display:block;font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.1em;color:var(--gray2);margin-bottom:14px}
+.foot-col a{display:block;color:var(--gray);font-size:14px;margin-bottom:10px;transition:color .16s;width:max-content}
+.foot-col a:hover{color:var(--neon)}
+.socials{display:flex;gap:10px;margin-top:6px}
+.socials a{width:40px;height:40px;border-radius:11px;border:1px solid var(--line2);display:grid;place-items:center;color:var(--white);transition:.16s}
+.socials a:hover{border-color:var(--neon);color:var(--neon);transform:translateY(-2px)}
+.foot-bottom{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:12.5px;color:var(--gray2)}
+@media(max-width:760px){.foot-top{grid-template-columns:1fr 1fr}.foot-col.brandcol{grid-column:1/-1}}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:var(--neon);color:#050505;padding:14px 22px;border-radius:12px;font-weight:700;font-family:var(--display);text-transform:uppercase;font-size:13px;letter-spacing:.03em;z-index:120;transition:.28s;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ===== SEÇÕES GRAFITE (profundidade, sem branco) ===== */
+.sec.graphite{background:#141414;border-block:1px solid var(--line)}
+.sec.graphite .card{background:#1E1E1E;border-color:#2B2B2B}
+.sec.graphite .card:hover{border-color:var(--neon);box-shadow:0 22px 46px -26px rgba(198,255,0,.32)}
+.sec.graphite .card .ic{border-color:#333}
+.sec.graphite .faq details{background:#1E1E1E;border-color:#2B2B2B}
+.sec.graphite .faq details[open]{border-color:color-mix(in srgb,var(--neon) 55%,#2B2B2B)}
+.sec.graphite .how-block{border-bottom-color:var(--line2)}
+.sec.graphite .step .num{background:#0A0A0A}
+</style>
+</head>
 <body>
-<div class="loadbar" id="loadbar"></div>
-<div id="app"></div>
+
+
+<!-- reusable moto icon symbol -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="moto" viewBox="0 0 52 30">
+    <g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="21" r="6.4"/><circle cx="41" cy="21" r="6.4"/>
+      <path d="M11 21 L19 21 L25 12 L33 12"/>
+      <path d="M33 12 L41 21"/>
+      <path d="M30 12 L36 7.5"/>
+      <path d="M17 14.5 L24 14.5"/>
+      <path d="M17 14.5 L12.5 21"/>
+      <path d="M24 14.5 L25 12"/>
+    </g>
+  </symbol>
+</svg>
+
+<nav class="nav"><div class="wrap"><div class="nav-in">
+  <a class="logo" href="#top" aria-label="LEVA início"><img src="leva-wordmark.png" alt="LEVA" style="height:24px"></a>
+  <div class="nav-links">
+    <a href="#sobre">Sobre</a>
+    <a href="#servicos">Serviços</a>
+    <a href="#motoboys">Seja parceiro</a>
+    <a href="#faq">Dúvidas</a>
+    <a href="/app">Entrar</a>
+  </div>
+  <a href="/app" class="btn btn-neon">Faça seu pedido <span class="arw">→</span></a>
+  <button class="burger" id="burger" aria-label="Abrir menu"><span></span><span></span><span></span></button>
+</div></div></nav>
+
+<div class="drawer" id="drawer">
+  <div class="top">
+    <a class="logo" href="#top"><img src="leva-wordmark.png" alt="LEVA" style="height:22px"></a>
+    <button class="close" id="closeDrawer" aria-label="Fechar menu">×</button>
+  </div>
+  <nav>
+    <a href="#top"><span class="n">01</span>Início</a>
+    <a href="#sobre"><span class="n">02</span>Sobre</a>
+    <a href="#servicos"><span class="n">03</span>Serviços</a>
+    <a href="#motoboys"><span class="n">04</span>Seja parceiro</a>
+    <a href="#faq"><span class="n">05</span>Dúvidas</a>
+  </nav>
+  <a href="/app" class="btn btn-neon btn-block">Faça seu pedido →</a>
+</div>
+
+<main id="top">
+<!-- HERO -->
+<header class="hero">
+  <div class="cover"></div>
+  <div class="scrim"></div>
+  <div class="wrap"><div class="hero-content">
+    <div class="eyebrow" style="margin-bottom:22px">Entregas rápidas por motocicleta</div>
+    <h1><span class="l1">Sua entrega,</span><span class="l2">nosso <span class="tw" id="tw">destino</span>.</span></h1>
+    <p class="sub">Agilidade, segurança e compromisso para que o que você precisa chegue até você, sempre.</p>
+    <div class="cta-row">
+      <a href="/app" class="btn btn-neon">Faça seu pedido <span class="arw">→</span></a>
+      <a href="/app" class="btn btn-out">Cadastre-se como motoboy</a>
+    </div>
+  </div></div>
+</header>
+
+<!-- BENEFÍCIOS -->
+<section class="benefits"><div class="wrap"><div class="ben-grid">
+  <div class="ben reveal"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div><div><h3>Entrega rápida</h3><p>No menor tempo possível.</p></div></div>
+  <div class="ben reveal"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z"/></svg></div><div><h3>100% seguro</h3><p>Sua encomenda protegida.</p></div></div>
+  <div class="ben reveal"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div><h3>Rastreamento</h3><p>Acompanhe cada etapa.</p></div></div>
+  <div class="ben reveal"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="2" y="13" width="5" height="7" rx="2"/><rect x="17" y="13" width="5" height="7" rx="2"/><path d="M20 20a4 4 0 0 1-4 3h-3"/></svg></div><div><h3>Suporte</h3><p>Sempre que precisar.</p></div></div>
+</div></div></section>
+
+<!-- SERVIÇOS -->
+<section class="sec graphite" id="servicos"><div class="wrap">
+  <div class="how-block">
+    <div class="lbl"><div class="sec-eyebrow" style="justify-content:center"><span class="eyebrow">Como funciona · em 4 passos</span></div></div>
+    <div class="steps">
+      <div class="step reveal"><div class="num">01</div><h3>Solicite</h3><p>Faça seu pedido de forma rápida.</p></div>
+      <div class="step reveal"><div class="num">02</div><h3>Conectamos</h3><p>O motoboy mais próximo recebe e aceita.</p></div>
+      <div class="step reveal"><div class="num">03</div><h3>Levamos</h3><p>Coleta e transporte com segurança.</p></div>
+      <div class="step reveal"><div class="num">04</div><h3>Entregamos</h3><p>Você acompanha até a chegada.</p></div>
+    </div>
+  </div>
+  <div class="head-c">
+    <div class="sec-eyebrow"><span class="eyebrow">Serviços</span></div>
+    <h2 class="big">Do pequeno ao grande,<br>a gente <span class="neon">leva</span>.</h2>
+    <p>Você diz de onde, para onde e o que enviar. A gente busca e entrega — simples assim.</p>
+  </div>
+  <div class="cards">
+    <div class="card reveal"><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg></div><h3>Documentos</h3><p>Envie documentos com rapidez e segurança.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg></div><h3>Pequenos volumes</h3><p>O que você precisa, no seu destino.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v7a3 3 0 0 0 6 0V3M9 3v18M18 3c-1.5 1-2 3-2 6s.5 4 2 5v7"/></svg></div><h3>Alimentos</h3><p>Sabor e praticidade até você.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l1 12H5z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg></div><h3>Compras e outros</h3><p>Flexibilidade para o seu dia a dia.</p></div>
+  </div>
+</div></section>
+
+<!-- MOTOBOYS PARCEIROS -->
+<section class="sec biz" id="motoboys"><div class="wrap"><div class="biz-in"><div class="biz-grid">
+  <div class="reveal">
+    <div class="sec-eyebrow"><span class="eyebrow">Seja um parceiro</span></div>
+    <h2>Tem moto? <span class="neon">Rode com a LEVA.</span></h2>
+    <p>Receba corridas de entrega de empresas e pessoas da sua região direto no app. Você escolhe quando rodar e acompanha seus ganhos em tempo real.</p>
+    <div class="side" style="margin-top:24px">
+      <div class="row"><span class="k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Ganhos transparentes, por corrida</div>
+      <div class="row"><span class="k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Você escolhe os seus horários</div>
+      <div class="row"><span class="k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Corridas o dia todo na região</div>
+      <div class="row"><span class="k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Pagamento rápido, sem surpresa</div>
+      <div class="row"><span class="k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Cadastro gratuito, sem taxa</div>
+    </div>
+  </div>
+  <form class="form reveal" id="motoForm">
+    <h3>Quero ser motoboy LEVA</h3>
+    <p class="muted" style="font-size:13px;margin:-6px 0 16px">Cadastro rápido, leva 1 minuto. Sem taxa de inscrição.</p>
+    <div class="field"><label for="moNome">Nome completo</label><input id="moNome" required placeholder="Seu nome"></div>
+    <div class="field"><label for="moWpp">WhatsApp</label><input id="moWpp" required placeholder="(19) 9____-____"></div>
+    <div class="field"><label for="moSit">Sua situação</label><select id="moSit"><option>Tenho moto e CNH em dia</option><option>Tenho moto, regularizando documentação</option></select></div>
+    <button class="btn btn-neon btn-block" type="submit">Enviar cadastro <span class="arw">→</span></button>
+  </form>
+</div></div></div></section>
+
+<!-- SOBRE -->
+<section class="sec about" id="sobre"><div class="wrap"><div class="about-grid">
+  <svg class="about-beam" viewBox="0 0 1200 480" preserveAspectRatio="none" aria-hidden="true">
+    <path class="bm-run" d="M-30 -34 L690 -34 L690 432 L1230 432"/>
+  </svg>
+  <div class="reveal">
+    <div class="sec-eyebrow"><span class="eyebrow">Sobre a LEVA</span></div>
+    <h2>Mais que entregas,<br>conectamos pessoas<br>e <span class="neon">negócios</span>.</h2>
+    <p>A LEVA nasceu para tornar as entregas mais simples, rápidas e confiáveis. Unimos tecnologia, agilidade e uma equipe preparada para garantir que cada pedido chegue ao destino com segurança.</p>
+    <a href="/app" class="btn btn-out">Faça seu pedido <span class="arw">→</span></a>
+  </div>
+  <div class="about-visual reveal">
+    <div class="diag"><i style="top:22%;left:-30%"></i><i style="top:52%;left:-30%"></i><i style="top:82%;left:-30%"></i></div>
+    <img src="leva-icon.png" alt="Símbolo da LEVA — motociclista em velocidade">
+  </div>
+</div></div></section>
+
+<!-- FAQ -->
+<section class="sec graphite" id="faq"><div class="wrap">
+  <div class="head-c">
+    <div class="sec-eyebrow"><span class="eyebrow">Dúvidas</span></div>
+    <h2 class="big">Perguntas <span class="neon">frequentes</span>.</h2>
+    <p>As respostas para o que mais perguntam sobre a LEVA.</p>
+  </div>
+  <div class="faq">
+    <details open><summary>Como faço para pedir uma entrega?<span class="plus"></span></summary><div class="ans">Você informa a origem, o destino e o que vai enviar. A LEVA encontra o motoboy mais próximo, mostra o valor antes de confirmar e você acompanha tudo em tempo real, do pedido à entrega.</div></details>
+    <details><summary>O que a LEVA transporta?<span class="plus"></span></summary><div class="ans">Documentos, envelopes, malotes, pequenos volumes, alimentos e compras — itens que cabem com segurança na bag ou no baú da moto.</div></details>
+    <details><summary>Como é calculado o valor da entrega?<span class="plus"></span></summary><div class="ans">Pelo trajeto entre a coleta e a entrega e pelo tamanho do item. Você vê o valor estimado antes de confirmar, sem surpresa.</div></details>
+    <details><summary>Atendem empresas e pessoas físicas?<span class="plus"></span></summary><div class="ans">Sim. A LEVA atende empresas (CNPJ) e pessoas (CPF), com entregas pontuais ou recorrentes.</div></details>
+    <details><summary>Consigo acompanhar a minha entrega?<span class="plus"></span></summary><div class="ans">Sim. Você acompanha o motoboy no mapa em tempo real e recebe o comprovante (foto e assinatura) ao final.</div></details>
+    <details><summary>Qual a região de atendimento?<span class="plus"></span></summary><div class="ans">Começamos por Mogi Guaçu e região, e a cobertura está sempre crescendo. Consulte a disponibilidade para o seu endereço.</div></details>
+    <details><summary>Sou motoboy — como trabalho com a LEVA?<span class="plus"></span></summary><div class="ans">Cadastre-se gratuitamente, receba as corridas pelo app e escolha quando rodar. Seus ganhos ficam visíveis por corrida, com pagamento rápido.</div></details>
+  </div>
+</div></section>
+
+</main>
+
+<footer><div class="wrap">
+  <div class="foot-top">
+    <div class="foot-col brandcol">
+      <a class="logo" href="#top"><img src="leva-logo.png" alt="LEVA" style="height:40px"></a>
+      <div class="foot-tag">Sempre com você.</div>
+      <p class="muted" style="font-size:13.5px;max-width:30ch;margin-top:14px">Entregas rápidas por motocicleta. Documentos, encomendas e muito mais — com agilidade e segurança.</p>
+    </div>
+    <div class="foot-col">
+      <b>Navegação</b>
+      <a href="#top">Início</a><a href="#sobre">Sobre</a><a href="#servicos">Serviços</a><a href="#motoboys">Seja parceiro</a><a href="#faq">Dúvidas</a>
+    <a href="/app">Entrar</a>
+    </div>
+    <div class="foot-col">
+      <b>Redes sociais</b>
+      <div class="socials">
+        <a href="#" aria-label="Instagram"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+        <a href="#" aria-label="WhatsApp"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.6-4A9 9 0 1 1 8 19.4z"/></svg></a>
+        <a href="#" aria-label="Facebook"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 8h3V4h-3a4 4 0 0 0-4 4v2H7v4h3v8h4v-8h3l1-4h-4V8a1 1 0 0 1 1-1z"/></svg></a>
+      </div>
+      <a href="/app" class="btn btn-out" style="margin-top:20px;padding:11px 18px">Faça seu pedido →</a>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span>© 2026 LEVA. Todos os direitos reservados.</span>
+    <span>Mogi Guaçu — SP</span>
+  </div>
+</div></footer>
+
 <div class="toast" id="toast"></div>
-<script src="/app.js"></script>
-</body></html>
+
+<script>
+document.documentElement.classList.add('js');
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+// mobile drawer
+const drawer=$('#drawer');
+$('#burger').addEventListener('click',()=>{drawer.classList.add('open');});
+$('#closeDrawer').addEventListener('click',()=>drawer.classList.remove('open'));
+drawer.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>drawer.classList.remove('open')));
+
+// speed lines
+function makeLines(el,n){
+  if(!el)return;
+  for(let i=0;i<n;i++){
+    const s=document.createElement('i');
+    const w=60+Math.random()*120;
+    s.style.width=w+'px';
+    s.style.top=(8+Math.random()*84)+'%';
+    s.style.left=(Math.random()*70)+'%';
+    s.style.animationDelay=(Math.random()*2.6)+'s';
+    s.style.animationDuration=(2+Math.random()*1.8)+'s';
+    el.appendChild(s);
+  }
+}
+makeLines($('#sl2'),14);
+
+// reveal on scroll (safe: default visible without JS)
+const rev=$$('.reveal');
+if('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion:reduce)').matches){
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.12});
+  rev.forEach(el=>io.observe(el));
+  setTimeout(()=>rev.forEach(el=>el.classList.add('in')),1400); // failsafe
+}else{ rev.forEach(el=>el.classList.add('in')); }
+
+// form + toast
+const toastEl=$('#toast');let tmr;
+function toast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(tmr);tmr=setTimeout(()=>toastEl.classList.remove('show'),3600);}
+$('#motoForm').addEventListener('submit',e=>{e.preventDefault();window.location.href='/app';});
+function pedido(){toast('Em breve você poderá pedir sua entrega pela LEVA. Fique de olho!');}
+
+/* máquina de escrever — palavra do hero */
+(function(){
+  const tw=document.getElementById('tw'); if(!tw) return;
+  const WORDS=['destino','compromisso','cuidado'];
+  const TYPE=78, ERASE=46, HOLD_FULL=2000, HOLD_EMPTY=450;
+  let idx=0;
+  tw.textContent=WORDS[0];
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  function erase(done){let t=tw.textContent;(function s(){if(!t.length){done();return;}t=t.slice(0,-1);tw.textContent=t;setTimeout(s,ERASE);})();}
+  function type(w,done){let i=0;(function s(){if(i>=w.length){done();return;}i++;tw.textContent=w.slice(0,i);setTimeout(s,TYPE);})();}
+  function run(){erase(()=>setTimeout(()=>{idx=(idx+1)%WORDS.length;type(WORDS[idx],()=>setTimeout(run,HOLD_FULL));},HOLD_EMPTY));}
+  setTimeout(run,HOLD_FULL);
+})();
+</script>
+
+</body>
+</html>

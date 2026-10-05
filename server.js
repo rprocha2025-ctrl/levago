@@ -265,6 +265,8 @@ function rideOut(r) {
     avalCliente: r.aval_cliente, avalMotoboy: r.aval_motoboy, paga: !!r.paga };
 }
 
+// a plataforma (login + painéis) fica em /app; a landing institucional em /
+app.get(['/app','/app/*'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // cria as contas demo automaticamente se o banco estiver vazio
