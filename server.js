@@ -131,7 +131,7 @@ function labelDe(s) {
   if (s.cidade) parts.push(s.cidade + (s.uf ? '/' + s.uf : ''));
   return parts.join(' · ') || s.rua || '';
 }
-// região (bbox) de Mogi Guaçu e cidades vizinhas — limita a busca para não "fugir" do que foi digitado
+// região de Mogi Guaçu — usada só como PREFERÊNCIA (desempate), NÃO como limite. A busca é nível Brasil.
 const BBOX = { minLon: -47.25, minLat: -22.70, maxLon: -46.55, maxLat: -22.00 };
 // usa só o que foi digitado antes da vírgula (a rua). bairro/cidade vêm da sugestão escolhida.
 const soRua = q => String(q).split(',')[0].replace(/\s+/g, ' ').trim();
@@ -141,8 +141,8 @@ async function fetchT(url, ms = 2600) {
   finally { clearTimeout(t); }
 }
 async function viaPhoton(q) {
-  // bbox restringe à região; lat/lon ordena por proximidade do centro
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=10&lat=${MGCENTER.lat}&lon=${MGCENTER.lng}&bbox=${BBOX.minLon},${BBOX.minLat},${BBOX.maxLon},${BBOX.maxLat}`;
+  // busca nível Brasil; lat/lon só dá leve preferência à região (sem restringir)
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=10&lat=${MGCENTER.lat}&lon=${MGCENTER.lng}`;
   const r = await fetchT(url);
   const j = await r.json();
   return ((j && j.features) || [])
@@ -159,9 +159,9 @@ async function viaPhoton(q) {
     .filter(s => s.rua && s.lat != null);
 }
 async function viaNominatim(q) {
-  // viewbox + bounded=1 força os resultados a ficarem dentro da região
+  // busca nível Brasil (countrycodes=br). viewbox SEM bounded = só preferência pela região, não limite.
   const vb = `${BBOX.minLon},${BBOX.maxLat},${BBOX.maxLon},${BBOX.minLat}`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=10&addressdetails=1&countrycodes=br&accept-language=pt-BR&viewbox=${vb}&bounded=1`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=10&addressdetails=1&countrycodes=br&accept-language=pt-BR&viewbox=${vb}`;
   const r = await fetchT(url);
   const j = await r.json();
   return (Array.isArray(j) ? j : []).map(it => {
