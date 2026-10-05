@@ -366,7 +366,7 @@ async function chamarCorrida(){
   if(!(ped.o.rua&&ped.o.numero&&ped.o.bairro&&ped.d.rua&&ped.d.numero&&ped.d.bairro)){toast('Preencha coleta e entrega',1);return;}
   loading(true);
   try{
-    const body={origem:ped.o,destino:ped.d,tipo:$('#i_tipo').value,dim:{c,l,a},peso:p};
+    const body={origem:ped.o,destino:ped.d,tipo:$('#i_tipo').value,dim:{c,l,a},peso:p,km:ped._km,min:ped._min};
     await api('/rides',{method:'POST',body});
     loading(false);toast('Corrida solicitada! Buscando motoboy…');viewTab='minhas';clearPoll();renderShell();renderTab();
   }catch(e){loading(false);

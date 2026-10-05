@@ -174,7 +174,18 @@ app.post('/api/rides', auth, role('cliente'), async (req, res) => {
   if (!(dim.c>0&&dim.l>0&&dim.a>0&&dim.peso>0)) return res.status(400).json({ error: 'item_invalido' });
   const probs = excedeLimite(dim);
   if (probs.length) return res.status(400).json({ error: 'item_grande', probs });
-  const { km, min } = await rotaKm(o, d);                 // distância autoritativa no servidor
+  // distância: usa a rota que o cliente viu no mapa (Google Directions), com trava
+  // de segurança contra manipulação — precisa estar entre 0,8x e 3,5x a linha reta.
+  let km, min;
+  const cKm = Number(b.km), cMin = Number(b.min);
+  if (o.lat && o.lng && d.lat && d.lng && cKm > 0) {
+    const hv = haversine({lat:+o.lat,lng:+o.lng},{lat:+d.lat,lng:+d.lng});
+    if (hv > 0 && cKm >= hv*0.8 && cKm <= hv*3.5) {
+      km = Math.round(cKm*10)/10;
+      min = (cMin > 0) ? Math.round(cMin) : Math.max(4, Math.round(km/22*60));
+    }
+  }
+  if (km == null) { const r = await rotaKm(o, d); km = r.km; min = r.min; }  // fallback
   const q = cotar(km, dim.peso);
   const u = Users.get.get(req.user.email);
   const ride = {
