@@ -39,10 +39,12 @@ CREATE TABLE IF NOT EXISTS rides (
   tipo TEXT, dim TEXT, peso REAL,
   km REAL, min_est INTEGER,
   valor REAL, comissao REAL, valor_motoboy REAL, precos TEXT,
-  extras REAL DEFAULT 0, espera REAL DEFAULT 0,
+  extras REAL DEFAULT 0, espera REAL DEFAULT 0, espera_min INTEGER DEFAULT 0,
+  gorjeta REAL DEFAULT 0,
+  foto_coleta TEXT, foto_entrega TEXT,
   status TEXT NOT NULL,
   motoboy_email TEXT, motoboy_nome TEXT,
-  criada_em TEXT, aceita_em TEXT, chegou_em TEXT, iniciada_em TEXT, concluida_em TEXT,
+  criada_em TEXT, aceita_em TEXT, chegou_em TEXT, aguardou_em TEXT, iniciada_em TEXT, concluida_em TEXT,
   aval_cliente INTEGER, aval_motoboy INTEGER,
   paga INTEGER DEFAULT 0
 );
@@ -54,6 +56,12 @@ CREATE TABLE IF NOT EXISTS resets (
   created_at TEXT NOT NULL
 );
 `);
+
+// migração: adiciona colunas novas em bancos já existentes (ignora se já existem)
+for (const col of [
+  'espera_min INTEGER DEFAULT 0', 'gorjeta REAL DEFAULT 0',
+  'foto_coleta TEXT', 'foto_entrega TEXT', 'aguardou_em TEXT',
+]) { try { db.exec(`ALTER TABLE rides ADD COLUMN ${col}`); } catch (e) { /* já existe */ } }
 
 export default db;
 
@@ -68,6 +76,7 @@ export const Users = {
   updateMetas: db.prepare('UPDATE users SET meta_dia=?, meta_semana=? WHERE email=?'),
   updateBanco: db.prepare('UPDATE users SET banco_tipo=?, banco_chave=? WHERE email=?'),
   addSaldoRide: db.prepare('UPDATE users SET saldo = saldo + ?, rides_count = rides_count + 1 WHERE email=?'),
+  addSaldo: db.prepare('UPDATE users SET saldo = saldo + ? WHERE email=?'),
   addRating: db.prepare('UPDATE users SET rating = rating + ?, rating_count = rating_count + 1 WHERE email=?'),
 };
 
@@ -87,6 +96,11 @@ export const Rides = {
   release: db.prepare("UPDATE rides SET status='solicitada', motoboy_email=NULL, motoboy_nome=NULL, aceita_em=NULL WHERE id=?"),
   avalCliente: db.prepare('UPDATE rides SET aval_cliente=? WHERE id=?'),
   avalMotoboy: db.prepare('UPDATE rides SET aval_motoboy=? WHERE id=?'),
+  setFotoColeta: db.prepare('UPDATE rides SET foto_coleta=? WHERE id=?'),
+  setFotoEntrega: db.prepare('UPDATE rides SET foto_entrega=? WHERE id=?'),
+  setEspera: db.prepare('UPDATE rides SET espera=?, espera_min=? WHERE id=?'),
+  setGorjeta: db.prepare('UPDATE rides SET gorjeta=? WHERE id=?'),
+  setAguardou: db.prepare('UPDATE rides SET aguardou_em=? WHERE id=?'),
 };
 
 // ---- recuperação de senha ----

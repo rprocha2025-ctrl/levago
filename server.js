@@ -15,6 +15,7 @@ const PROD = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET || 'troque-isto-em-producao';
 const MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY || '';          // chave usada no navegador (restrita por domínio)
 const MAPS_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY || MAPS_KEY; // chave server-side (Directions)
+const MGCENTER = { lat: -22.3716, lng: -46.9426 };              // centro de Mogi Guaçu (viés da busca)
 
 // ---- regras de negócio / preços ----
 const CFG = {
@@ -27,7 +28,19 @@ const CFG = {
   taxaServico: 2.00, comissaoPct: 0.12,
   max: { c: 60, l: 50, a: 50, peso: 25 },
   tipos: ['Documentos / envelopes','Pequeno volume','Alimentos','Compras / mercado','Peças / ferramentas','Outro'],
+  // valores sugeridos de caixinha (gorjeta) para o motoboy
+  gorjetas: [2, 5, 10],
 };
+// Dados fiscais da empresa (aparecem no recibo). ⚠️ Troque pelo CNPJ/razão social reais.
+const EMPRESA = {
+  nome: process.env.EMPRESA_NOME || 'LEVA Entregas',
+  cnpj: process.env.EMPRESA_CNPJ || '00.000.000/0001-00',
+  cidade: process.env.EMPRESA_CIDADE || 'Mogi Guaçu/SP',
+  contato: process.env.EMPRESA_CONTATO || 'contato@leva.app',
+};
+// mapa de nome de estado -> UF (para normalizar o retorno do geocoder)
+const UF = { 'Acre':'AC','Alagoas':'AL','Amapá':'AP','Amazonas':'AM','Bahia':'BA','Ceará':'CE','Distrito Federal':'DF','Espírito Santo':'ES','Goiás':'GO','Maranhão':'MA','Mato Grosso':'MT','Mato Grosso do Sul':'MS','Minas Gerais':'MG','Pará':'PA','Paraíba':'PB','Paraná':'PR','Pernambuco':'PE','Piauí':'PI','Rio de Janeiro':'RJ','Rio Grande do Norte':'RN','Rio Grande do Sul':'RS','Rondônia':'RO','Roraima':'RR','Santa Catarina':'SC','São Paulo':'SP','Sergipe':'SE','Tocantins':'TO' };
+const toUF = s => { if(!s) return ''; if(/^[A-Z]{2}$/.test(s)) return s; const m=String(s).match(/BR-([A-Z]{2})/); if(m) return m[1]; return UF[s] || ''; };
 function fatorPico(dt = new Date()) {
   const h = (dt.getUTCHours() - 3 + 24) % 24;        // horário de Brasília (UTC-3)
   return CFG.picoHoras.some(([a, b]) => h >= a && h < b) ? CFG.picoFator : 1.0;
@@ -35,16 +48,19 @@ function fatorPico(dt = new Date()) {
 // Retorna a decomposição completa. valor = o que o CLIENTE paga (X);
 // valorMotoboy = X menos todas as taxas da plataforma (Y).
 function cotar(km, min, peso) {
-  let sub = CFG.base + CFG.porKm * km + CFG.porMin * (min || 0);
-  if (peso > CFG.kgFree) sub += (peso - CFG.kgFree) * CFG.kgExtra;
+  const pesoBase = peso > CFG.kgFree ? (peso - CFG.kgFree) * CFG.kgExtra : 0;
+  let sub = CFG.base + CFG.porKm * km + CFG.porMin * (min || 0) + pesoBase;
+  const aplicouMin = sub < CFG.tarifaMinima;
   sub = Math.max(sub, CFG.tarifaMinima);
   const fator = fatorPico();
   const valor = Math.round(sub * fator * 100) / 100;            // X (cliente)
+  // componente de peso extra efetivamente cobrado (para itemizar no recibo); 0 se caiu na tarifa mínima
+  const pesoExtra = aplicouMin ? 0 : Math.round(pesoBase * fator * 100) / 100;
   const taxaServico = CFG.taxaServico;                          // taxa fixa da plataforma
   const comissao = Math.round((valor - taxaServico) * CFG.comissaoPct * 100) / 100;
   const totalRetido = Math.round((taxaServico + comissao) * 100) / 100;
   const valorMotoboy = Math.round((valor - totalRetido) * 100) / 100;  // Y (motoboy)
-  return { valor, subtotal: Math.round(sub*100)/100, fator, taxaServico, comissao, totalRetido, valorMotoboy };
+  return { valor, subtotal: Math.round(sub*100)/100, fator, pesoExtra, taxaServico, comissao, totalRetido, valorMotoboy };
 }
 function excedeLimite(d) {
   const p = [];
@@ -102,8 +118,59 @@ app.get('/api/config', (req, res) => res.json({
   mapsKey: MAPS_KEY, mapsEnabled: !!MAPS_KEY,
   // só a tarifa que o cliente enxerga (sem as taxas internas da plataforma)
   pricing: { base: CFG.base, porKm: CFG.porKm, porMin: CFG.porMin, kgFree: CFG.kgFree, kgExtra: CFG.kgExtra, tarifaMinima: CFG.tarifaMinima, picoFator: CFG.picoFator, picoHoras: CFG.picoHoras, esperaFreeMin: CFG.esperaFreeMin, esperaPorMin: CFG.esperaPorMin },
-  max: CFG.max, tipos: CFG.tipos,
+  max: CFG.max, tipos: CFG.tipos, gorjetas: CFG.gorjetas, empresa: EMPRESA,
 }));
+
+// ---- autocomplete de endereço (OpenStreetMap — grátis, sem chave) ----
+// Usa Photon (ótimo para autocomplete) e cai no Nominatim se vier vazio (melhor cobertura estruturada).
+function labelDe(s) {
+  const parts = [];
+  if (s.rua) parts.push(s.rua + (s.numero ? ', ' + s.numero : ''));
+  if (s.bairro) parts.push(s.bairro);
+  if (s.cidade) parts.push(s.cidade + (s.uf ? '/' + s.uf : ''));
+  return parts.join(' · ') || s.rua || '';
+}
+async function viaPhoton(q) {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=8&lat=${MGCENTER.lat}&lon=${MGCENTER.lng}`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } });
+  const j = await r.json();
+  return ((j && j.features) || [])
+    .filter(f => ((f.properties && f.properties.countrycode) || 'BR') === 'BR')
+    .map(f => {
+      const p = f.properties || {}, g = (f.geometry && f.geometry.coordinates) || [];
+      const estado = p.state || '';
+      const s = { rua: p.street || p.name || '', numero: p.housenumber || '',
+        bairro: p.district || p.suburb || p.neighbourhood || p.locality || p.quarter || '',
+        cidade: p.city || p.town || p.village || p.municipality || p.county || '',
+        estado, uf: toUF(estado), lat: g[1], lng: g[0] };
+      s.label = labelDe(s); return s;
+    })
+    .filter(s => s.rua && s.lat != null);
+}
+async function viaNominatim(q) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=8&addressdetails=1&countrycodes=br&accept-language=pt-BR`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } });
+  const j = await r.json();
+  return (Array.isArray(j) ? j : []).map(it => {
+    const a = it.address || {};
+    const estado = a.state || '';
+    const s = { rua: a.road || a.pedestrian || a.cycleway || a.footway || it.name || '',
+      numero: a.house_number || '',
+      bairro: a.suburb || a.neighbourhood || a.quarter || a.city_district || a.hamlet || '',
+      cidade: a.city || a.town || a.village || a.municipality || a.county || '',
+      estado, uf: toUF(a['ISO3166-2-lvl4'] || estado),
+      lat: +it.lat, lng: +it.lon };
+    s.label = labelDe(s); return s;
+  }).filter(s => s.rua && !isNaN(s.lat));
+}
+app.get('/api/geocode', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.json({ sugestoes: [] });
+  let sug = [];
+  try { sug = await viaPhoton(q); } catch (e) { /* tenta fallback */ }
+  if (!sug.length) { try { sug = await viaNominatim(q); } catch (e) { /* vazio */ } }
+  res.json({ sugestoes: sug.slice(0, 6) });
+});
 
 app.post('/api/auth/register', async (req, res) => {
   const b = req.body || {};
@@ -211,7 +278,7 @@ app.post('/api/rides', auth, role('cliente'), async (req, res) => {
     origem: JSON.stringify(o), destino: JSON.stringify(d),
     tipo: b.tipo || CFG.tipos[0], dim: JSON.stringify(dim), peso: dim.peso,
     km, min_est: min, valor: q.valor, comissao: q.comissao, valor_motoboy: q.valorMotoboy,
-    precos: JSON.stringify({ subtotal: q.subtotal, fator: q.fator, taxaServico: q.taxaServico, comissao: q.comissao, totalRetido: q.totalRetido }),
+    precos: JSON.stringify({ subtotal: q.subtotal, fator: q.fator, pesoExtra: q.pesoExtra, taxaServico: q.taxaServico, comissao: q.comissao, totalRetido: q.totalRetido }),
     criada_em: new Date().toISOString(),
   };
   Rides.insert.run(ride);
@@ -226,6 +293,19 @@ app.get('/api/rides/current', auth, role('motoboy'), (req, res) => {
 });
 app.get('/api/rides/motoboy', auth, role('motoboy'), (req, res) => res.json(Rides.byMotoboy.all(req.user.email).map(r => rideOut(r, 'motoboy'))));
 
+// corrida completa (com fotos) — para o recibo e a prévia do motoboy
+app.get('/api/rides/:id', auth, (req, res) => {
+  const r = Rides.get.get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'nao_encontrada' });
+  const u = req.user;
+  let view = null;
+  if (u.role === 'admin') view = 'admin';
+  else if (u.role === 'cliente' && r.cliente_email === u.email) view = 'cliente';
+  else if (u.role === 'motoboy' && r.motoboy_email === u.email) view = 'motoboy';
+  if (!view) return res.status(403).json({ error: 'nao_permitido' });
+  res.json(rideOut(r, view, true));
+});
+
 app.post('/api/rides/:id/accept', auth, role('motoboy'), (req, res) => {
   const u = Users.get.get(req.user.email);
   const info = Rides.accept.run(u.email, u.nome, new Date().toISOString(), req.params.id); // atômico: só a 1ª aceita vence
@@ -238,13 +318,36 @@ app.post('/api/rides/:id/status', auth, role('motoboy'), (req, res) => {
   if (!r || r.motoboy_email !== req.user.email) return res.status(403).json({ error: 'nao_sua' });
   const to = req.body?.status;
   const now = new Date().toISOString();
-  if (to === 'aguardando') Rides.setStamp.run('aguardando', now, null, null, null, r.id);
-  else if (to === 'em_andamento') Rides.setStamp.run('em_andamento', null, now, null, null, r.id);
-  else if (to === 'concluida') {
+  if (to === 'a_caminho') Rides.setStatus.run('a_caminho', r.id);
+  else if (to === 'aguardando') { Rides.setStamp.run('aguardando', now, null, null, null, r.id); Rides.setAguardou.run(now, r.id); }
+  else if (to === 'em_andamento') {
+    if (!r.foto_coleta) return res.status(400).json({ error: 'foto_coleta_obrigatoria' });
+    // calcula a espera (tempo no endereço acima do tempo grátis)
+    if (r.aguardou_em) {
+      const minWait = Math.max(0, Math.round((Date.now() - new Date(r.aguardou_em).getTime()) / 60000));
+      const cobravel = Math.max(0, minWait - CFG.esperaFreeMin);
+      const espera = Math.round(cobravel * CFG.esperaPorMin * 100) / 100;
+      if (espera > 0) Rides.setEspera.run(espera, minWait, r.id);
+    }
+    Rides.setStamp.run('em_andamento', null, now, null, null, r.id);
+  } else if (to === 'concluida') {
+    if (!r.foto_entrega) return res.status(400).json({ error: 'foto_entrega_obrigatoria' });
     Rides.setStamp.run('concluida', null, null, now, 1, r.id);
-    Users.addSaldoRide.run(r.valor_motoboy, r.motoboy_email);   // credita carteira (líquido)
-  } else if (to === 'a_caminho') Rides.setStatus.run('a_caminho', r.id);
-  else return res.status(400).json({ error: 'status_invalido' });
+    const cur = Rides.get.get(r.id);
+    Users.addSaldoRide.run((cur.valor_motoboy || 0) + (cur.espera || 0), r.motoboy_email); // líquido + espera (100% do motoboy)
+  } else return res.status(400).json({ error: 'status_invalido' });
+  res.json(rideOut(Rides.get.get(r.id), 'motoboy'));
+});
+
+// motoboy registra a foto da coleta / entrega (obrigatórias)
+app.post('/api/rides/:id/foto', auth, role('motoboy'), (req, res) => {
+  const r = Rides.get.get(req.params.id);
+  if (!r || r.motoboy_email !== req.user.email) return res.status(403).json({ error: 'nao_sua' });
+  const { tipo, data } = req.body || {};
+  if (!data || !/^data:image\//.test(String(data)) || String(data).length > 1600000) return res.status(400).json({ error: 'foto_invalida' });
+  if (tipo === 'coleta') Rides.setFotoColeta.run(data, r.id);
+  else if (tipo === 'entrega') Rides.setFotoEntrega.run(data, r.id);
+  else return res.status(400).json({ error: 'tipo_invalido' });
   res.json(rideOut(Rides.get.get(r.id), 'motoboy'));
 });
 
@@ -268,6 +371,19 @@ app.post('/api/rides/:id/rate', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// cliente adiciona caixinha (gorjeta) ao motoboy — 100% repassado
+app.post('/api/rides/:id/gorjeta', auth, role('cliente'), (req, res) => {
+  const r = Rides.get.get(req.params.id);
+  if (!r || r.cliente_email !== req.user.email) return res.status(403).json({ error: 'nao_sua' });
+  if (!(r.status === 'concluida' || r.paga)) return res.status(400).json({ error: 'corrida_nao_concluida' });
+  const v = Math.round(Math.max(0, Math.min(500, +req.body?.valor || 0)) * 100) / 100;
+  if (!(v > 0)) return res.status(400).json({ error: 'valor_invalido' });
+  const novo = Math.round(((r.gorjeta || 0) + v) * 100) / 100;
+  Rides.setGorjeta.run(novo, r.id);
+  if (r.motoboy_email) Users.addSaldo.run(v, r.motoboy_email);
+  res.json(rideOut(Rides.get.get(r.id), 'cliente'));
+});
+
 // ---- motoboy: metas e banco ----
 app.post('/api/me/metas', auth, role('motoboy'), (req, res) => {
   Users.updateMetas.run(+req.body?.metaDia||0, +req.body?.metaSemana||0, req.user.email);
@@ -287,20 +403,27 @@ app.get('/api/admin/rides', auth, role('admin'), (req, res) => res.json(Rides.al
 //  - motoboy: só vê o que RECEBE (valorMotoboy). Nunca o valor do cliente nem as taxas.
 //  - cliente: vê o total que paga (valor) e o detalhamento da tarifa.
 //  - admin: vê tudo (cliente pagou, motoboy recebeu, taxas retidas).
-function rideOut(r, view = 'admin') {
+const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+function rideOut(r, view = 'admin', full = false) {
   if (!r) return null;
+  const espera = r.espera || 0, esperaMin = r.espera_min || 0, gorjeta = r.gorjeta || 0;
   const b = { id: r.id, clienteNome: r.cliente_nome,
     origem: JSON.parse(r.origem||'{}'), destino: JSON.parse(r.destino||'{}'),
     tipo: r.tipo, dim: JSON.parse(r.dim||'{}'), peso: r.peso, km: r.km, minEst: r.min_est,
     status: r.status, motoboyEmail: r.motoboy_email, motoboyNome: r.motoboy_nome,
-    criadaEm: r.criada_em, aceitaEm: r.aceita_em, chegouEm: r.chegou_em, concluidaEm: r.concluida_em,
-    avalCliente: r.aval_cliente, avalMotoboy: r.aval_motoboy, paga: !!r.paga };
-  if (view === 'motoboy') return { ...b, valorMotoboy: r.valor_motoboy };
+    criadaEm: r.criada_em, aceitaEm: r.aceita_em, chegouEm: r.chegou_em, aguardouEm: r.aguardou_em,
+    iniciadaEm: r.iniciada_em, concluidaEm: r.concluida_em,
+    avalCliente: r.aval_cliente, avalMotoboy: r.aval_motoboy, paga: !!r.paga,
+    espera, esperaMin, gorjeta,
+    temFotoColeta: !!r.foto_coleta, temFotoEntrega: !!r.foto_entrega };
+  if (full) { b.fotoColeta = r.foto_coleta || null; b.fotoEntrega = r.foto_entrega || null; }
+  if (view === 'motoboy') return { ...b, valorMotoboy: r.valor_motoboy, recebe: r2((r.valor_motoboy||0) + espera + gorjeta) };
   const p = JSON.parse(r.precos || '{}');
-  if (view === 'cliente') return { ...b, clienteEmail: r.cliente_email, valor: r.valor, fator: p.fator || 1, subtotal: p.subtotal };
+  const total = r2((r.valor||0) + espera + gorjeta);
+  if (view === 'cliente') return { ...b, clienteEmail: r.cliente_email, valor: r.valor, fator: p.fator || 1, subtotal: p.subtotal, pesoExtra: p.pesoExtra || 0, total, empresa: EMPRESA };
   // admin — decomposição completa
-  return { ...b, clienteEmail: r.cliente_email, valor: r.valor, valorCliente: r.valor,
-    subtotal: p.subtotal, fator: p.fator || 1, taxaServico: p.taxaServico, comissao: r.comissao,
+  return { ...b, clienteEmail: r.cliente_email, valor: r.valor, valorCliente: r.valor, total,
+    subtotal: p.subtotal, fator: p.fator || 1, pesoExtra: p.pesoExtra || 0, taxaServico: p.taxaServico, comissao: r.comissao,
     totalRetido: p.totalRetido, valorMotoboy: r.valor_motoboy };
 }
 

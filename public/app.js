@@ -43,6 +43,65 @@ function cotarLocal(km,min,peso){
 }
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
+/* ================= UI: modal, fotos, estilos ================= */
+function ensureUiStyles(){
+  if($('#uistyles'))return;
+  const st=document.createElement('style');st.id='uistyles';
+  st.textContent=`
+  .modalov{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.72);display:flex;align-items:flex-start;justify-content:center;padding:28px 14px;overflow:auto}
+  .modalbx{position:relative;background:#121212;border:1px solid #2b2b2b;border-radius:18px;width:100%;max-width:520px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .modalbx.wide{max-width:680px}
+  .modalx{position:absolute;top:12px;right:12px;z-index:3;width:34px;height:34px;border-radius:50%;border:1px solid #333;background:#1b1b1b;color:#ddd;cursor:pointer;font-size:14px}
+  .rc{padding:22px 22px 20px}
+  .rc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #222;padding-bottom:14px;margin-bottom:14px}
+  .rc-brand{font-weight:800;font-size:18px;color:#fff;letter-spacing:.02em}
+  .rc-brand small{display:block;font-weight:500;font-size:11px;color:#9a9a9a;letter-spacing:0}
+  .rc-badge{background:#C6FF00;color:#0a0a0a;font-weight:800;font-size:11px;padding:5px 10px;border-radius:999px;white-space:nowrap}
+  .rc-map{height:180px;border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid #242424;background:#1a1a1a}
+  .rc-row{display:flex;gap:10px;font-size:13px;color:#cfcfcf;padding:3px 0}
+  .rc-row .k{color:#8c8c8c;min-width:92px}
+  .rc-addr{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding:4px 0}
+  .rc-dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:none}
+  .rc-sec{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#8c8c8c;margin:16px 0 8px}
+  .rc-fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .rc-fotos figure{margin:0}.rc-fotos img{width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #242424;background:#1a1a1a;display:block}
+  .rc-fotos figcaption{font-size:11px;color:#8c8c8c;margin-top:4px;text-align:center}
+  .rc-vals{border:1px solid #242424;border-radius:12px;padding:12px 14px;margin-top:8px}
+  .rc-vals .lin{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#d6d6d6}
+  .rc-vals .lin.extra{color:#ffd56b}
+  .rc-vals .tot{display:flex;justify-content:space-between;border-top:1px solid #2b2b2b;margin-top:8px;padding-top:10px;font-weight:800;font-size:17px;color:#fff}
+  .foto-up{border:1px dashed #3a3a3a;border-radius:12px;padding:14px;text-align:center;margin-top:12px;background:#161616}
+  .foto-up.ok{border-color:#C6FF00;background:#14180a}
+  .foto-up img{max-width:100%;max-height:150px;border-radius:10px;margin-bottom:8px}
+  .foto-up input{display:none}
+  .tip-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+  .tip-grid button{padding:12px 6px;border-radius:12px;border:1px solid #333;background:#1a1a1a;color:#eee;font-weight:700;cursor:pointer}
+  .tip-grid button.sel{border-color:#C6FF00;background:#14180a;color:#C6FF00}
+  .stars-big button{background:none;border:none;font-size:30px;color:#444;cursor:pointer;padding:0 2px}
+  .stars-big button.on{color:#ffd33a}`;
+  document.head.appendChild(st);
+}
+function closeModal(){const m=$('#modalov');if(m)m.remove();}
+function modal(html,opts={}){
+  ensureUiStyles();closeModal();
+  const ov=document.createElement('div');ov.className='modalov';ov.id='modalov';
+  ov.innerHTML=`<div class="modalbx ${opts.wide?'wide':''}"><button class="modalx" id="modalx">✕</button>${html}</div>`;
+  document.body.appendChild(ov);
+  $('#modalx').onclick=closeModal;
+  ov.addEventListener('mousedown',e=>{if(e.target===ov&&!opts.sticky)closeModal();});
+  return ov;
+}
+// redimensiona uma foto (File) para no máx 1000px, JPEG ~0.72 -> dataURL leve
+function fileParaDataURL(file,maxPx=1000,q=0.72){
+  return new Promise((res,rej)=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>{let w=img.width,h=img.height;
+      if(w>h&&w>maxPx){h=Math.round(h*maxPx/w);w=maxPx;}else if(h>=w&&h>maxPx){w=Math.round(w*maxPx/h);h=maxPx;}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);res(cv.toDataURL('image/jpeg',q));};
+    img.onerror=()=>{URL.revokeObjectURL(url);rej('img');};img.src=url;});
+}
+
 /* ================= BOOT ================= */
 (async function boot(){
   try{ CFG = await api('/config'); }catch(e){ CFG={pricing:{comissao:.18,base:7,porKm:2.2,kgFree:5,kgExtra:.5,esperaFreeMin:5,esperaPorMin:.5},max:{c:60,l:50,a:50,peso:25},tipos:['Outro'],mapsEnabled:false}; }
@@ -257,7 +316,7 @@ function loadMaps(){
   mapsPromise=new Promise((res,rej)=>{
     window.__mapsReady=()=>res(window.google);
     const s=document.createElement('script');
-    s.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CFG.mapsKey)}&libraries=places&language=pt-BR&region=BR&callback=__mapsReady`;
+    s.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CFG.mapsKey)}&language=pt-BR&region=BR&callback=__mapsReady`;
     s.async=true; s.onerror=()=>rej('load-fail'); document.head.appendChild(s);
   });
   return mapsPromise;
@@ -286,13 +345,17 @@ function cliPedir(){
       <div class="sub">Digite o endereço e selecione a sugestão do mapa. O bairro é preenchido sozinho.</div>
       <div class="banner info">Limite do baú: ${CFG.max.c}×${CFG.max.l}×${CFG.max.a} cm e ${CFG.max.peso} kg.</div>
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--neon);margin:4px 0 10px">Coleta</div>
-      <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="o_rua" placeholder="Comece a digitar…" autocomplete="off"></div>
-      <div class="row2"><div class="field"><label>Número <span class="req">*</span></label><input id="o_num"></div>
+      <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="o_rua" placeholder="Comece a digitar e escolha a sugestão…" autocomplete="off"></div>
+      <div class="row2"><div class="field"><label>Número <span class="req">*</span></label><input id="o_num" placeholder="nº"></div>
         <div class="field"><label>Bairro <span class="req">*</span></label><input id="o_bai"></div></div>
+      <div class="row2"><div class="field"><label>Cidade <span class="req">*</span></label><input id="o_cid"></div>
+        <div class="field"><label>UF <span class="req">*</span></label><input id="o_uf" maxlength="2" style="text-transform:uppercase"></div></div>
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin:4px 0 10px">Entrega</div>
-      <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="d_rua" placeholder="Comece a digitar…" autocomplete="off"></div>
-      <div class="row2"><div class="field"><label>Número <span class="req">*</span></label><input id="d_num"></div>
+      <div class="field"><label>Endereço (rua) <span class="req">*</span></label><input id="d_rua" placeholder="Comece a digitar e escolha a sugestão…" autocomplete="off"></div>
+      <div class="row2"><div class="field"><label>Número <span class="req">*</span></label><input id="d_num" placeholder="nº"></div>
         <div class="field"><label>Bairro <span class="req">*</span></label><input id="d_bai"></div></div>
+      <div class="row2"><div class="field"><label>Cidade <span class="req">*</span></label><input id="d_cid"></div>
+        <div class="field"><label>UF <span class="req">*</span></label><input id="d_uf" maxlength="2" style="text-transform:uppercase"></div></div>
       <hr class="sep">
       <div class="field"><label>Tipo de item <span class="req">*</span></label><select id="i_tipo">${CFG.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
       <div class="row3">
@@ -305,9 +368,78 @@ function cliPedir(){
     <div><div class="quote" id="quote">${quotePlaceholder()}</div></div>
   </div>`);
   ['i_c','i_l','i_a','i_p'].forEach(id=>$('#'+id).addEventListener('input',updateQuote));
-  ['o_num','o_bai','d_num','d_bai'].forEach(id=>$('#'+id).addEventListener('input',()=>{const s=id[0]==='o'?'o':'d';const f=id.slice(2);ped[s][f==='num'?'numero':'bairro']=$('#'+id).value;updateQuote();}));
-  ['o_rua','d_rua'].forEach(id=>$('#'+id).addEventListener('input',()=>{const s=id[0];ped[s[0]==='o'?'o':'d'].rua=$('#'+id).value;}));
-  if(CFG.mapsEnabled) initPedirMap();
+  const campoMap={num:'numero',bai:'bairro',cid:'cidade',uf:'uf'};
+  ['o_num','o_bai','o_cid','o_uf','d_num','d_bai','d_cid','d_uf'].forEach(id=>$('#'+id).addEventListener('input',()=>{const s=id[0]==='o'?'o':'d';ped[s][campoMap[id.slice(2)]]=$('#'+id).value;updateQuote();}));
+  ['o_rua','d_rua'].forEach(id=>$('#'+id).addEventListener('input',()=>{const s=id[0]==='o'?'o':'d';ped[s].rua=$('#'+id).value;}));
+  attachGeocode('o'); attachGeocode('d');           // autocomplete grátis (OpenStreetMap) — não depende do Google
+  if(CFG.mapsEnabled) initPedirMap();               // mapa visual do Google (opcional)
+}
+/* ---- autocomplete de endereço via /api/geocode (OpenStreetMap) ---- */
+function ensureAcStyles(){
+  if($('#acstyles'))return;
+  const st=document.createElement('style');st.id='acstyles';
+  st.textContent=`.field{position:relative}
+  .acbox{position:absolute;left:0;right:0;top:100%;z-index:50;background:#141414;border:1px solid #2b2b2b;border-radius:12px;margin-top:4px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.5);max-height:260px;overflow-y:auto}
+  .acit{padding:10px 12px;cursor:pointer;border-bottom:1px solid #1f1f1f;font-size:13px;line-height:1.35}
+  .acit:last-child{border-bottom:none}
+  .acit:hover,.acit.sel{background:#1f1f1f}
+  .acit .r{color:#eaeaea}.acit .m{color:#9a9a9a;font-size:11px}
+  .acload{padding:10px 12px;color:#9a9a9a;font-size:12px}`;
+  document.head.appendChild(st);
+}
+function attachGeocode(side){
+  ensureAcStyles();
+  const inp=$('#'+side+'_rua'); if(!inp)return;
+  const field=inp.closest('.field'); let box=null, t=null, items=[], sel=-1;
+  const close=()=>{if(box){box.remove();box=null;}items=[];sel=-1;};
+  const choose=(s)=>{
+    inp.value=s.rua||s.label;
+    $('#'+side+'_bai').value=s.bairro||'';
+    $('#'+side+'_cid').value=s.cidade||'';
+    $('#'+side+'_uf').value=(s.uf||'').toUpperCase();
+    if(s.numero)$('#'+side+'_num').value=s.numero;
+    ped[side]={rua:s.rua||inp.value,numero:s.numero||$('#'+side+'_num').value,bairro:s.bairro||'',cidade:s.cidade||'',uf:(s.uf||'').toUpperCase(),lat:s.lat,lng:s.lng};
+    close(); computeDist();
+    if(!s.numero)setTimeout(()=>{const n=$('#'+side+'_num');if(n)n.focus();},60); // deixa só o número para o cliente
+  };
+  const paint=()=>{
+    if(!box){box=document.createElement('div');box.className='acbox';field.appendChild(box);}
+    box.innerHTML=items.map((s,i)=>`<div class="acit${i===sel?' sel':''}" data-i="${i}"><div class="r">${esc(s.rua||s.label)}${s.numero?', '+esc(s.numero):''}</div><div class="m">${esc([s.bairro,s.cidade,s.estado].filter(Boolean).join(' · '))}</div></div>`).join('');
+    box.querySelectorAll('.acit').forEach(el=>el.addEventListener('mousedown',ev=>{ev.preventDefault();choose(items[+el.dataset.i]);}));
+  };
+  const search=async(q)=>{
+    try{
+      const r=await fetch('/api/geocode?q='+encodeURIComponent(q));
+      const j=await r.json(); items=(j&&j.sugestoes)||[]; sel=-1;
+      if(!items.length){close();return;} paint();
+    }catch(e){ close(); }
+  };
+  inp.addEventListener('input',()=>{
+    const q=inp.value.trim(); ped[side].lat=undefined; ped[side].lng=undefined;
+    clearTimeout(t);
+    if(q.length<3){close();return;}
+    if(box)box.innerHTML='<div class="acload">Buscando endereços…</div>';
+    t=setTimeout(()=>search(q),320);
+  });
+  inp.addEventListener('keydown',e=>{
+    if(!box||!items.length)return;
+    if(e.key==='ArrowDown'){e.preventDefault();sel=(sel+1)%items.length;paint();}
+    else if(e.key==='ArrowUp'){e.preventDefault();sel=(sel-1+items.length)%items.length;paint();}
+    else if(e.key==='Enter'&&sel>=0){e.preventDefault();choose(items[sel]);}
+    else if(e.key==='Escape'){close();}
+  });
+  inp.addEventListener('blur',()=>setTimeout(close,180));
+}
+/* distância a partir das coordenadas (sempre funciona); refina com a rota do Google se disponível */
+function haversineLocal(a,b){const R=6371,r=x=>x*Math.PI/180;const dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng);const s=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
+function computeDist(){
+  if(window.google&&gmap)drawMarkers(window.google);
+  if(ped.o.lat&&ped.d.lat){
+    const km=Math.round(haversineLocal(ped.o,ped.d)*1.35*10)/10||1.2;
+    ped._km=km; ped._min=Math.max(4,Math.round(km/22*60));
+    if(window.google&&dirService)updateRoute(window.google); // refina com a rota real (se Directions estiver ativa)
+  }
+  updateQuote();
 }
 function quotePlaceholder(){return `<div class="qbadge">🏍️ LEVA Moto</div><div class="empty" style="padding:24px 0">Preencha coleta e entrega para ver o valor.</div>`;}
 function initPedirMap(){
@@ -316,19 +448,8 @@ function initPedirMap(){
       styles:[{elementType:'geometry',stylers:[{color:'#1a1a1a'}]},{elementType:'labels.text.stroke',stylers:[{color:'#0a0a0a'}]},{elementType:'labels.text.fill',stylers:[{color:'#9a9a9a'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#2b2b2b'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e1a1a'}]},{featureType:'poi',stylers:[{visibility:'off'}]}]});
     dirService=new g.maps.DirectionsService();
     dirRenderer=new g.maps.DirectionsRenderer({map:gmap,suppressMarkers:true,polylineOptions:{strokeColor:'#C6FF00',strokeWeight:5,strokeOpacity:.9}});
-    const bias=new g.maps.Circle({center:MGCENTER,radius:12000});
-    ['o','d'].forEach(side=>{
-      const ac=new g.maps.places.Autocomplete($('#'+side+'_rua'),{componentRestrictions:{country:'br'},fields:['address_components','geometry'],bounds:bias.getBounds()});
-      ac.addListener('place_changed',()=>{
-        const c=parseComp(ac.getPlace());
-        if(c.rua)$('#'+side+'_rua').value=c.rua;
-        if(c.numero)$('#'+side+'_num').value=c.numero;
-        if(c.bairro)$('#'+side+'_bai').value=c.bairro;
-        ped[side]={rua:c.rua||$('#'+side+'_rua').value,numero:c.numero||$('#'+side+'_num').value,bairro:c.bairro||$('#'+side+'_bai').value,lat:c.lat,lng:c.lng};
-        drawMarkers(g); updateRoute(g);
-      });
-    });
-  }).catch(()=>{ $('#map').innerHTML='<div class="maptip">Não foi possível carregar o Google Maps (verifique a chave e as restrições de domínio).</div>'; });
+    if(ped.o.lat||ped.d.lat)drawMarkers(g);           // reposiciona marcadores se já havia endereços escolhidos
+  }).catch(()=>{ const m=$('#map'); if(m)m.innerHTML='<div class="maptip">🗺️ Mapa indisponível no momento — o pedido e o cálculo do valor continuam funcionando normalmente.</div>'; });
 }
 function drawMarkers(g){
   const mk=(pos,color)=>new g.maps.Marker({position:pos,map:gmap,icon:{path:g.maps.SymbolPath.CIRCLE,scale:8,fillColor:color,fillOpacity:1,strokeColor:'#050505',strokeWeight:2}});
@@ -350,25 +471,29 @@ function updateQuote(){
   let km=ped._km;
   if(!km&&ped.o.rua&&ped.d.rua&&!CFG.mapsEnabled){let h=0;const s=(ped.o.rua+ped.o.numero+ped.d.rua+ped.d.numero).toLowerCase();for(const ch of s)h=(h*31+ch.charCodeAt(0))>>>0;km=Math.round((1.5+(h%1000)/1000*10.5)*10)/10;ped._km=km;}
   const q=$('#quote');
-  const temEnd=ped.o.rua&&ped.o.numero&&ped.o.bairro&&ped.d.rua&&ped.d.numero&&ped.d.bairro;
+  const temEnd=ped.o.rua&&ped.o.numero&&ped.o.bairro&&ped.o.cidade&&ped.d.rua&&ped.d.numero&&ped.d.bairro&&ped.d.cidade;
   if(!km||!temEnd){q.innerHTML=quotePlaceholder();return;}
   const min=ped._min||Math.max(4,Math.round(km/22*60));
   const pr=cotarLocal(km,min,p>0?p:0);
+  // valor da corrida AGRUPADO (base+distância+tempo+pico); só o peso extra aparece separado
+  const pesoExtra=pr.aplicouMin?0:Math.round(pr.vPeso*pr.fator*100)/100;
+  const corrida=Math.round((pr.valor-pesoExtra)*100)/100;
   const lin=(nome,val)=>`<div class="lin"><span>${nome}</span><b>${brl(val)}</b></div>`;
+  const cid=(e)=>e.cidade?`, ${esc(e.cidade)}${e.uf?'/'+esc(e.uf):''}`:'';
   q.innerHTML=`<div class="qbadge">🏍️ LEVA Moto</div>
     <div class="qprice">${brl(pr.valor)}</div>
     <div class="qmeta">★ 5,0 · ${min} min (${km.toFixed(1)} km) de distância</div>
     <div class="qaddr">
-      <div class="qa"><span class="dotg"></span><div>${esc(ped.o.rua)}, ${esc(ped.o.numero)}<br><span class="muted small">${esc(ped.o.bairro)}</span></div></div>
-      <div class="qa"><span class="dotb"></span><div>${esc(ped.d.rua)}, ${esc(ped.d.numero)}<br><span class="muted small">${esc(ped.d.bairro)}</span></div></div>
+      <div class="qa"><span class="dotg"></span><div>${esc(ped.o.rua)}, ${esc(ped.o.numero)}<br><span class="muted small">${esc(ped.o.bairro)}${cid(ped.o)}</span></div></div>
+      <div class="qa"><span class="dotb"></span><div>${esc(ped.d.rua)}, ${esc(ped.d.numero)}<br><span class="muted small">${esc(ped.d.bairro)}${cid(ped.d)}</span></div></div>
     </div>
     <div class="pricebox" style="margin-bottom:14px">
-      ${pr.aplicouMin?lin('Tarifa mínima',CFG.pricing.tarifaMinima):`${lin('Tarifa base',pr.vBase)}${lin('Distância ('+km.toFixed(1)+' km)',pr.vDist)}${lin('Tempo ('+min+' min)',pr.vTempo)}${pr.vPeso>0?lin('Peso extra',pr.vPeso):''}`}
-      ${pr.fator>1?lin('Tarifa dinâmica (pico ×'+pr.fator+')',Math.round((pr.valor-pr.valor/pr.fator)*100)/100):''}
+      ${lin('Corrida',corrida)}
+      ${pesoExtra>0?lin('Peso extra ('+p+' kg)',pesoExtra):''}
     </div>
     <div id="itemwarn"></div>
     <button class="btn btn-neon btn-block" id="chamar">Chamar moto · ${brl(pr.valor)}</button>
-    <p class="small muted" style="margin-top:10px">Valor reservado no cartão e cobrado após a entrega. Espera acima de ${CFG.pricing.esperaFreeMin} min: ${brl(CFG.pricing.esperaPorMin)}/min.</p>`;
+    <p class="small muted" style="margin-top:10px">Valor reservado no cartão e cobrado após a entrega. Espera acima de ${CFG.pricing.esperaFreeMin} min: ${brl(CFG.pricing.esperaPorMin)}/min — somada na fatura como aditivo.</p>`;
   // aviso de limite ao vivo
   if(c>0&&l>0&&a>0&&p>0){const probs=[];if(c>CFG.max.c)probs.push('comprimento');if(l>CFG.max.l)probs.push('largura');if(a>CFG.max.a)probs.push('altura');if(p>CFG.max.peso)probs.push('peso');
     if(probs.length){$('#itemwarn').innerHTML=`<div class="banner bad" style="margin:0 0 10px"><div><b>Item acima do limite da moto</b> (${probs.join(', ')}). Não é permitido levar.</div></div>`;$('#chamar').disabled=true;}}
@@ -379,7 +504,7 @@ async function chamarCorrida(){
   let ok=true;const fe=(id,m)=>{const el=$('#e_'+id);if(el){el.textContent=m||'';el.className='fe'+(m?' show':'');}if(m)ok=false;};
   fe('i_c',c>0?'':'Informe');fe('i_l',l>0?'':'Informe');fe('i_a',a>0?'':'Informe');fe('i_p',p>0?'':'Informe');
   if(!ok){toast('Preencha as dimensões e o peso',1);return;}
-  if(!(ped.o.rua&&ped.o.numero&&ped.o.bairro&&ped.d.rua&&ped.d.numero&&ped.d.bairro)){toast('Preencha coleta e entrega',1);return;}
+  if(!(ped.o.rua&&ped.o.numero&&ped.o.bairro&&ped.o.cidade&&ped.d.rua&&ped.d.numero&&ped.d.bairro&&ped.d.cidade)){toast('Preencha coleta e entrega (rua, número, bairro e cidade)',1);return;}
   loading(true);
   try{
     const body={origem:ped.o,destino:ped.d,tipo:$('#i_tipo').value,dim:{c,l,a},peso:p,km:ped._km,min:ped._min};
@@ -393,17 +518,17 @@ async function chamarCorrida(){
 function cliMinhas(){ setBody('<div class="empty">Carregando…</div>'); setPoll(async()=>{try{const rides=await api('/rides/mine');renderMinhas(rides);}catch(e){}},5000); }
 function renderMinhas(rides){
   if(!rides.length){setBody('<div class="card"><div class="empty">Você ainda não pediu corridas.</div></div>');return;}
+  const concl=r=>r.status==='concluida'||r.status==='paga';
   setBody(`<div class="list">${rides.map(r=>{
     let acao='';
     if(r.status==='solicitada')acao='<span class="small muted">Procurando motoboy…</span>';
     else if(['aceita','a_caminho','aguardando','em_andamento'].includes(r.status))acao=`<span class="small">Motoboy: <b>${esc(r.motoboyNome||'-')}</b></span>`;
-    else if(r.status==='concluida'&&!r.avalCliente)acao=`<div><div class="small muted">Avalie:</div><div class="stars" id="av_${r.id}"></div></div>`;
-    else if(r.avalCliente)acao=`<span class="small ok">★${r.avalCliente}</span>`;
-    return `<div class="item"><div class="main"><div class="t">${esc(r.tipo)} · ${brl(r.valor)}</div>
+    else if(concl(r))acao=`<button class="btn btn-out btn-sm" data-rec="${r.id}">🧾 Recibo${r.avalCliente?' ★'+r.avalCliente:' / avaliar'}</button>`;
+    return `<div class="item"><div class="main"><div class="t">${esc(r.tipo)} · ${brl(r.total||r.valor)}</div>
       <div class="d">${esc(r.origem.bairro)} → ${esc(r.destino.bairro)} · ${(r.km||0).toFixed(1)}km · ${new Date(r.criadaEm).toLocaleString('pt-BR')}</div></div>
       <span class="tag ${r.status}">${labelStatus(r.status)}</span><div style="min-width:150px;text-align:right">${acao}</div></div>`;
   }).join('')}</div>`);
-  rides.forEach(r=>{if(r.status==='concluida'&&!r.avalCliente){const h=$('#av_'+r.id);if(h)estrelas(h,n=>avaliar(r.id,n));}});
+  app().querySelectorAll('button[data-rec]').forEach(b=>b.onclick=()=>abrirRecibo(b.dataset.rec));
 }
 
 /* ================= MOTOBOY ================= */
@@ -421,29 +546,62 @@ async function aceitar(id){ loading(true);
   try{ await api('/rides/'+id+'/accept',{method:'POST'}); loading(false); toast('Corrida aceita!'); viewTab='atual'; clearPoll(); renderShell(); renderTab(); }
   catch(e){ loading(false); toast(e.status===409?'Outro motoboy aceitou primeiro.':'Erro',1); }
 }
-function motoAtual(){ setBody('<div class="empty">Carregando…</div>'); setPoll(async()=>{try{renderAtual(await api('/rides/current'));}catch(e){}},4000); }
+function motoAtual(){ setBody('<div class="empty">Carregando…</div>'); clearPoll(); (async()=>{try{renderAtual(await api('/rides/current'));}catch(e){setBody('<div class="card"><div class="empty">Erro ao carregar.</div></div>');}})(); }
+function fotoUploaderHTML(tipo,jaTem){
+  return `<div class="foto-up ${jaTem?'ok':''}" id="fup_${tipo}">
+    <div id="fprev_${tipo}">${jaTem?'<div class="small ok">✓ Foto registrada</div>':''}</div>
+    <label class="btn btn-out btn-sm" for="finp_${tipo}" id="flbl_${tipo}">${jaTem?'Trocar foto':'📷 Tirar / enviar foto'}</label>
+    <input type="file" id="finp_${tipo}" accept="image/*" capture="environment">
+    <div class="small muted" style="margin-top:6px">Obrigatória para avançar</div></div>`;
+}
+function wireFotoUploader(rideId,tipo,onDone){
+  const inp=$('#finp_'+tipo);if(!inp)return;
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    const box=$('#fup_'+tipo),prev=$('#fprev_'+tipo);
+    try{
+      prev.innerHTML='<div class="small muted">Processando foto…</div>';
+      const data=await fileParaDataURL(f);
+      prev.innerHTML=`<img src="${data}" alt="prévia">`;
+      loading(true);
+      await api('/rides/'+rideId+'/foto',{method:'POST',body:{tipo,data}});
+      loading(false);box.classList.add('ok');toast('Foto registrada');
+      if(onDone)onDone();
+    }catch(e){loading(false);prev.innerHTML='<div class="small" style="color:#ff6b6b">Falha ao enviar a foto</div>';toast('Erro ao enviar foto',1);}
+  };
+}
 function renderAtual(r){
   if(!r){setBody('<div class="card"><div class="empty">Sem corrida em andamento.</div></div>');return;}
   const steps=[['aceita','A caminho da coleta','a_caminho'],['a_caminho','Cheguei na coleta','aguardando'],['aguardando','Coletei — iniciar','em_andamento'],['em_andamento','Concluir entrega','concluida']];
   const cur=steps.find(s=>s[0]===r.status);
+  const end=(e)=>`${esc(e.rua)}, ${esc(e.numero)} — ${esc(e.bairro)}${e.cidade?', '+esc(e.cidade)+(e.uf?'/'+esc(e.uf):''):''}`;
+  // etapa que exige foto: coleta (antes de iniciar) e entrega (antes de concluir)
+  const precisaColeta=r.status==='aguardando', precisaEntrega=r.status==='em_andamento';
+  const faltaFoto=(precisaColeta&&!r.temFotoColeta)||(precisaEntrega&&!r.temFotoEntrega);
   setBody(`<div class="grid g2">
-    <div class="card"><h3>Corrida em andamento</h3><div class="sub">${esc(r.tipo)} · <span class="neon">${brl(r.valorMotoboy)}</span> para você</div>
-      <div class="list"><div class="item"><div class="main"><div class="t">📍 Coleta</div><div class="d">${esc(r.origem.rua)}, ${esc(r.origem.numero)} — ${esc(r.origem.bairro)}</div></div></div>
-      <div class="item"><div class="main"><div class="t">🏁 Entrega</div><div class="d">${esc(r.destino.rua)}, ${esc(r.destino.numero)} — ${esc(r.destino.bairro)}</div></div></div>
-      <div class="item"><div class="main"><div class="t">Cliente</div><div class="d">${esc(r.clienteNome)}</div></div></div></div></div>
+    <div class="card"><h3>Corrida em andamento</h3><div class="sub">${esc(r.tipo)} · <span class="neon">${brl(r.recebe||r.valorMotoboy)}</span> para você</div>
+      <div class="list"><div class="item"><div class="main"><div class="t">📍 Coleta</div><div class="d">${end(r.origem)}</div></div></div>
+      <div class="item"><div class="main"><div class="t">🏁 Entrega</div><div class="d">${end(r.destino)}</div></div></div>
+      <div class="item"><div class="main"><div class="t">Cliente</div><div class="d">${esc(r.clienteNome)}</div></div></div></div>
+      ${precisaColeta?`<div class="rc-sec">Foto da coleta <span class="req">*</span></div><div class="sub" style="margin-top:0">Registre o item no momento da coleta.</div>${fotoUploaderHTML('coleta',r.temFotoColeta)}`:''}
+      ${precisaEntrega?`<div class="rc-sec">Foto da entrega <span class="req">*</span></div><div class="sub" style="margin-top:0">Registre o item entregue ao destinatário.</div>${fotoUploaderHTML('entrega',r.temFotoEntrega)}`:''}
+    </div>
     <div class="card"><h3>Status</h3><div class="sub">Atualize conforme avança</div>
       <div style="display:flex;flex-direction:column;gap:10px">${['aceita','a_caminho','aguardando','em_andamento','concluida'].map(s=>{const done=ORD[r.status]>=ORD[s];return `<div class="flex"><span style="width:12px;height:12px;border-radius:50%;background:${done?'var(--neon)':'var(--line2)'}"></span><span class="${done?'':'muted'}">${labelStatus(s)}</span></div>`;}).join('')}</div>
-      ${r.status==='aguardando'?`<div class="banner warn" style="margin-top:14px">Espera grátis ${CFG.pricing.esperaFreeMin}min; depois ${brl(CFG.pricing.esperaPorMin)}/min.</div>`:''}
-      ${cur?`<button class="btn btn-neon btn-block" id="avancar" style="margin-top:14px">${cur[1]}</button>`:''}
+      ${r.status==='aguardando'?`<div class="banner warn" style="margin-top:14px">⏱️ Espera grátis ${CFG.pricing.esperaFreeMin}min; depois ${brl(CFG.pricing.esperaPorMin)}/min — somada como aditivo na fatura do cliente.</div>`:''}
+      ${cur?`<button class="btn btn-neon btn-block" id="avancar" style="margin-top:14px" ${faltaFoto?'disabled':''}>${cur[1]}</button>`:''}
+      ${faltaFoto?`<div class="small muted" style="margin-top:8px;text-align:center">Envie a foto ${precisaColeta?'da coleta':'da entrega'} para liberar este botão.</div>`:''}
       <button class="btn btn-ghost btn-block btn-sm" id="cancelar" style="margin-top:10px">Cancelar corrida</button></div>
   </div>`);
-  if(cur)$('#avancar').onclick=async()=>{loading(true);try{await api('/rides/'+r.id+'/status',{method:'POST',body:{status:cur[2]}});loading(false);toast(cur[2]==='concluida'?'Entrega concluída! '+brl(r.valorMotoboy)+' na carteira.':'Status atualizado');renderTab();}catch(e){loading(false);toast('Erro',1);}};
+  if(precisaColeta)wireFotoUploader(r.id,'coleta',()=>renderTab());
+  if(precisaEntrega)wireFotoUploader(r.id,'entrega',()=>renderTab());
+  if(cur){const b=$('#avancar');if(b)b.onclick=async()=>{loading(true);try{await api('/rides/'+r.id+'/status',{method:'POST',body:{status:cur[2]}});loading(false);toast(cur[2]==='concluida'?'Entrega concluída! '+brl(r.recebe||r.valorMotoboy)+' na carteira.':'Status atualizado');renderTab();}catch(e){loading(false);const er=e.data&&e.data.error;toast(er==='foto_coleta_obrigatoria'?'Envie a foto da coleta':er==='foto_entrega_obrigatoria'?'Envie a foto da entrega':'Erro',1);}};}
   $('#cancelar').onclick=async()=>{if(!confirm('Cancelar? A corrida volta para a fila.'))return;loading(true);try{await api('/rides/'+r.id+'/cancel',{method:'POST'});loading(false);toast('Cancelada');viewTab='online';clearPoll();renderShell();renderTab();}catch(e){loading(false);toast('Erro',1);}};
 }
 function motoCarteira(){ setBody('<div class="empty">Carregando…</div>'); setPoll(async()=>{try{const [u,rides]=await Promise.all([api('/me'),api('/rides/motoboy')]);USER=u;renderCarteira(u,rides);}catch(e){}},6000); }
 function renderCarteira(u,rides){
   const feitas=(rides||[]).filter(r=>r.status==='concluida'||r.status==='paga');
-  const totalGanho=feitas.reduce((s,r)=>s+(r.valorMotoboy||0),0);
+  const totalGanho=feitas.reduce((s,r)=>s+(r.recebe||r.valorMotoboy||0),0);
   const mediaGanho=feitas.length?totalGanho/feitas.length:0;
   setBody(`<div class="banner info">Aqui aparece <b>o que você recebe</b> por corrida — já é o valor líquido, livre de qualquer desconto.</div>
     <div class="grid g3" style="margin-bottom:16px">
@@ -458,7 +616,7 @@ function renderCarteira(u,rides){
         <div class="field" style="margin:0;min-width:150px"><input id="bk_valor" type="number" placeholder="valor" step="0.01" max="${u.saldo}"></div>
         <button class="btn btn-neon btn-sm" id="transferir">Transferir</button></div></div>
     <div class="card"><h3>Extrato</h3><div class="sub">Valor que você recebeu em cada entrega</div>${feitas.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Corrida</th><th>Trajeto</th><th>Você recebeu</th></tr></thead><tbody>
-      ${feitas.sort((a,b)=>(b.concluidaEm||'').localeCompare(a.concluidaEm||'')).map(r=>`<tr><td>${r.concluidaEm?new Date(r.concluidaEm).toLocaleDateString('pt-BR'):'-'}</td><td>${esc(r.tipo)}</td><td class="small muted">${esc(r.origem.bairro)} → ${esc(r.destino.bairro)}</td><td class="neon"><b>${brl(r.valorMotoboy)}</b></td></tr>`).join('')}
+      ${feitas.sort((a,b)=>(b.concluidaEm||'').localeCompare(a.concluidaEm||'')).map(r=>`<tr><td>${r.concluidaEm?new Date(r.concluidaEm).toLocaleDateString('pt-BR'):'-'}</td><td>${esc(r.tipo)}${r.gorjeta>0?' <span class="small" style="color:#ffd56b">+caixinha</span>':''}</td><td class="small muted">${esc(r.origem.bairro)} → ${esc(r.destino.bairro)}</td><td class="neon"><b>${brl(r.recebe||r.valorMotoboy)}</b></td></tr>`).join('')}
     </tbody></table></div>`:'<div class="empty">Sem entregas concluídas.</div>'}</div>`);
   $('#salvarBanco').onclick=async()=>{const chave=$('#bk_chave').value.trim();if(!chave){toast('Informe a chave',1);return;}try{USER=await api('/me/banco',{method:'POST',body:{tipo:$('#bk_tipo').value,chave}});toast('Conta salva');renderTab();}catch(e){toast('Erro',1);}};
   $('#transferir').onclick=()=>{const val=+$('#bk_valor').value;if(!u.banco){toast('Cadastre uma conta',1);return;}if(!(val>0)||val>u.saldo){toast('Valor inválido',1);return;}toast('Transferência de '+brl(val)+' solicitada (requer gateway de pagamento real).');};
@@ -548,3 +706,142 @@ async function perfil(){ setBody('<div class="empty">Carregando…</div>'); try{
   </div></div>`);}catch(e){setBody('<div class="banner bad">Erro</div>');}}
 function estrelas(host,cb){host.innerHTML=[1,2,3,4,5].map(n=>`<button data-n="${n}">★</button>`).join('');let sel=0;const paint=k=>host.querySelectorAll('button').forEach((b,i)=>b.className=i<k?'on':'');host.querySelectorAll('button').forEach(b=>{b.onmouseenter=()=>paint(+b.dataset.n);b.onmouseleave=()=>paint(sel);b.onclick=()=>{sel=+b.dataset.n;paint(sel);cb(sel);};});}
 async function avaliar(id,nota){try{await api('/rides/'+id+'/rate',{method:'POST',body:{nota}});toast('Avaliação: ★'+nota);}catch(e){toast('Erro ao avaliar',1);}}
+
+/* ================= RECIBO (estilo Uber) + AVALIAÇÃO + CAIXINHA ================= */
+let leafletPromise=null;
+function loadLeaflet(){
+  if(window.L)return Promise.resolve(window.L);
+  if(leafletPromise)return leafletPromise;
+  leafletPromise=new Promise((res,rej)=>{
+    const css=document.createElement('link');css.rel='stylesheet';css.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';document.head.appendChild(css);
+    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';s.onload=()=>res(window.L);s.onerror=()=>rej('leaflet');document.head.appendChild(s);
+  });
+  return leafletPromise;
+}
+function initReciboMap(elId,o,d){
+  if(!(o&&o.lat&&d&&d.lat))return;
+  loadLeaflet().then(L=>{
+    const el=document.getElementById(elId);if(!el||el._leaflet_id)return;
+    const map=L.map(el,{zoomControl:false,attributionControl:false});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+    const a=[o.lat,o.lng],b=[d.lat,d.lng];
+    L.circleMarker(a,{radius:7,color:'#0a0a0a',weight:2,fillColor:'#C6FF00',fillOpacity:1}).addTo(map);
+    L.circleMarker(b,{radius:7,color:'#0a0a0a',weight:2,fillColor:'#5BC8FF',fillOpacity:1}).addTo(map);
+    L.polyline([a,b],{color:'#C6FF00',weight:4,opacity:.85}).addTo(map);
+    map.fitBounds([a,b],{padding:[30,30]});
+    setTimeout(()=>map.invalidateSize(),150);
+  }).catch(()=>{const el=document.getElementById(elId);if(el)el.innerHTML='<div style="padding:30px;text-align:center;color:#8c8c8c;font-size:12px">Mapa indisponível</div>';});
+}
+const dtBR=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'-';
+const endLinha=e=>`${esc(e.rua||'')}, ${esc(e.numero||'')} — ${esc(e.bairro||'')}${e.cidade?', '+esc(e.cidade)+(e.uf?'/'+esc(e.uf):''):''}`;
+function reciboValoresHTML(r){
+  const corrida=Math.round(((r.valor||0)-(r.pesoExtra||0))*100)/100;
+  const temExtras=(r.pesoExtra>0)||(r.espera>0)||(r.gorjeta>0);
+  const lin=(n,v,ex)=>`<div class="lin ${ex?'extra':''}"><span>${n}</span><span>${brl(v)}</span></div>`;
+  if(!temExtras)return `<div class="tot"><span>Total da corrida</span><span>${brl(r.total)}</span></div>`;
+  let h=lin('Corrida',corrida);
+  if(r.pesoExtra>0)h+=lin('+ Peso extra',r.pesoExtra,true);
+  if(r.espera>0)h+=lin('+ Espera no endereço ('+r.esperaMin+' min)',r.espera,true);
+  if(r.gorjeta>0)h+=lin('+ Caixinha ao entregador',r.gorjeta,true);
+  h+=`<div class="tot"><span>Total</span><span>${brl(r.total)}</span></div>`;
+  return h;
+}
+function reciboCorpoHTML(r,mapId){
+  const emp=r.empresa||CFG.empresa||{nome:'LEVA Entregas'};
+  const fotos=(r.fotoColeta||r.fotoEntrega)?`<div class="rc-sec">Comprovação do item</div>
+    <div class="rc-fotos">
+      <figure><img src="${r.fotoColeta||''}" alt="coleta">${r.fotoColeta?'':''}<figcaption>Coleta</figcaption></figure>
+      <figure><img src="${r.fotoEntrega||''}" alt="entrega"><figcaption>Entrega</figcaption></figure>
+    </div>`:'';
+  return `<div class="rc-head">
+      <div class="rc-brand">${esc(emp.nome)}<small>CNPJ ${esc(emp.cnpj||'—')}${emp.cidade?' · '+esc(emp.cidade):''}</small></div>
+      <div class="rc-badge">RECIBO</div>
+    </div>
+    <div class="rc-map" id="${mapId}"></div>
+    <div class="rc-addr"><span class="rc-dot" style="background:#C6FF00"></span><div><b>Coleta</b><br><span class="muted small">${endLinha(r.origem)}</span></div></div>
+    <div class="rc-addr"><span class="rc-dot" style="background:#5BC8FF"></span><div><b>Entrega</b><br><span class="muted small">${endLinha(r.destino)}</span></div></div>
+    <div style="margin-top:12px">
+      <div class="rc-row"><span class="k">Corrida nº</span><span>${esc((r.id||'').toUpperCase())}</span></div>
+      <div class="rc-row"><span class="k">Data/hora</span><span>${dtBR(r.concluidaEm||r.criadaEm)}</span></div>
+      <div class="rc-row"><span class="k">Entregador</span><span>${esc(r.motoboyNome||'-')}</span></div>
+      <div class="rc-row"><span class="k">Item</span><span>${esc(r.tipo||'-')} · ${r.peso||0} kg</span></div>
+      <div class="rc-row"><span class="k">Distância</span><span>${(r.km||0).toFixed(1)} km</span></div>
+    </div>
+    ${fotos}
+    <div class="rc-sec">Valores</div>
+    <div class="rc-vals">${reciboValoresHTML(r)}</div>`;
+}
+async function abrirRecibo(rideId){
+  let r;try{loading(true);r=await api('/rides/'+rideId);loading(false);}catch(e){loading(false);toast('Erro ao abrir recibo',1);return;}
+  const mapId='rcmap_'+Date.now();
+  const jaAval=!!r.avalCliente;
+  const gorjs=(CFG.gorjetas||[2,5,10]);
+  const corpo=reciboCorpoHTML(r,mapId);
+  const avalBlock=jaAval
+    ? `<div class="rc-sec">Sua avaliação</div><div class="small ok">Você avaliou o entregador com ★${r.avalCliente}.</div>`
+    : `<div class="rc-sec">Avalie o entregador</div><div class="stars-big" id="rc_stars"></div>`;
+  const tipBlock=`<div class="rc-sec">Caixinha para ${esc(r.motoboyNome||'o entregador')}</div>
+    <div class="small muted">100% vai para o entregador. ${r.gorjeta>0?'Você já enviou '+brl(r.gorjeta)+'.':''}</div>
+    <div class="tip-grid" id="rc_tips">${gorjs.map(v=>`<button data-v="${v}">${brl(v)}</button>`).join('')}<button data-v="outro">Outro</button></div>
+    <div id="rc_outro" style="display:none;margin-bottom:8px"><input id="rc_outro_v" type="number" min="1" step="0.5" placeholder="Valor da caixinha (R$)" style="width:100%"></div>
+    <div id="rc_tipconfirm"></div>
+    <button class="btn btn-neon btn-block btn-sm" id="rc_enviar_tip">Enviar caixinha</button>`;
+  modal(`<div class="rc">${corpo}
+    <div style="border-top:1px solid #222;margin-top:18px;padding-top:4px">${avalBlock}${tipBlock}</div>
+    <button class="btn btn-out btn-block btn-sm" id="rc_baixar" style="margin-top:16px">⬇ Baixar recibo</button>
+  </div>`,{wide:true,sticky:true});
+  initReciboMap(mapId,r.origem,r.destino);
+  if(!jaAval){const h=$('#rc_stars');if(h)estrelas(h,async n=>{await avaliar(r.id,n);h.outerHTML='<div class="small ok">Obrigado! Você avaliou com ★'+n+'.</div>';});}
+  // caixinha
+  let tipSel=0;
+  $('#rc_tips').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    $('#rc_tips').querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');
+    if(b.dataset.v==='outro'){$('#rc_outro').style.display='block';tipSel='outro';}
+    else{$('#rc_outro').style.display='none';tipSel=+b.dataset.v;}
+    $('#rc_tipconfirm').innerHTML='';
+  });
+  $('#rc_enviar_tip').onclick=()=>{
+    let v=tipSel==='outro'?+($('#rc_outro_v').value):tipSel;
+    if(!(v>0)){toast('Escolha ou digite um valor',1);return;}
+    v=Math.round(v*100)/100;
+    // caixa de confirmação
+    $('#rc_tipconfirm').innerHTML=`<div class="banner info" style="margin:0 0 10px">Confirmar caixinha de <b>${brl(v)}</b> para ${esc(r.motoboyNome||'o entregador')}?
+      <div class="flex" style="margin-top:8px;gap:8px"><button class="btn btn-neon btn-sm" id="rc_tip_ok">Confirmar</button><button class="btn btn-ghost btn-sm" id="rc_tip_no">Cancelar</button></div></div>`;
+    $('#rc_tip_no').onclick=()=>{$('#rc_tipconfirm').innerHTML='';};
+    $('#rc_tip_ok').onclick=async()=>{
+      loading(true);try{await api('/rides/'+r.id+'/gorjeta',{method:'POST',body:{valor:v}});loading(false);
+        toast('Caixinha enviada! Gerando novo comprovante…');closeModal();abrirRecibo(r.id); // novo recibo com a gorjeta
+      }catch(e){loading(false);toast('Erro ao enviar caixinha',1);}
+    };
+  };
+  $('#rc_baixar').onclick=()=>baixarRecibo(r);
+}
+function baixarRecibo(r){
+  const emp=r.empresa||CFG.empresa||{nome:'LEVA Entregas'};
+  const o=r.origem||{},d=r.destino||{};
+  const corpo=reciboCorpoHTML(r,'rcmap_dl');
+  const uiCss=document.getElementById('uistyles')?document.getElementById('uistyles').textContent:'';
+  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recibo ${esc(emp.nome)} · ${esc((r.id||'').toUpperCase())}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>body{margin:0;background:#0d0d0d;color:#eaeaea;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.req{color:#C6FF00}.muted{color:#9a9a9a}.small{font-size:12px}.ok{color:#C6FF00}.flex{display:flex;align-items:center}
+.wrap{max-width:560px;margin:20px auto;background:#121212;border:1px solid #2b2b2b;border-radius:16px}
+${uiCss}</style></head><body><div class="wrap"><div class="rc">${corpo}
+<div class="small muted" style="margin-top:16px;text-align:center">Documento gerado por ${esc(emp.nome)} · ${esc(emp.contato||'')}</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>
+<script>(function(){var o=${JSON.stringify({lat:o.lat,lng:o.lng})},d=${JSON.stringify({lat:d.lat,lng:d.lng})};
+if(!(o.lat&&d.lat))return;var el=document.getElementById('rcmap_dl');var m=L.map(el,{zoomControl:false,attributionControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(m);
+var a=[o.lat,o.lng],b=[d.lat,d.lng];
+L.circleMarker(a,{radius:7,color:'#0a0a0a',weight:2,fillColor:'#C6FF00',fillOpacity:1}).addTo(m);
+L.circleMarker(b,{radius:7,color:'#0a0a0a',weight:2,fillColor:'#5BC8FF',fillOpacity:1}).addTo(m);
+L.polyline([a,b],{color:'#C6FF00',weight:4,opacity:.85}).addTo(m);
+m.fitBounds([a,b],{padding:[30,30]});setTimeout(function(){m.invalidateSize();},200);})();<\/script>
+</body></html>`;
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download='recibo-LEVA-'+(r.id||'corrida')+'.html';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  toast('Recibo baixado');
+}
