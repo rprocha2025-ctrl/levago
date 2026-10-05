@@ -164,12 +164,32 @@ h2.big{font-size:var(--fs-h2);font-weight:800;text-transform:uppercase;line-heig
 /* COMO FUNCIONA */
 .how{background:var(--black2);border-block:1px solid var(--line)}
 .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;position:relative}
-.steps::before{content:"";position:absolute;top:30px;left:8%;right:8%;height:2px;background:linear-gradient(90deg,var(--line2),var(--neon),var(--line2));opacity:.5}
-.step{position:relative}
-.step .num{width:60px;height:60px;border-radius:50%;background:var(--black);border:1.5px solid var(--neon);color:var(--neon);font-family:var(--display);font-weight:800;font-size:20px;display:grid;place-items:center;position:relative;z-index:1}
+.step{position:relative;text-align:center}
+.ring{position:relative;width:64px;height:64px;margin:0 auto}
+.ring svg{width:64px;height:64px;transform:rotate(-90deg);display:block}
+.ring .track{fill:none;stroke:var(--line2);stroke-width:3}
+.ring .prog{fill:none;stroke:var(--neon);stroke-width:3;stroke-linecap:round;stroke-dasharray:182.2;stroke-dashoffset:182.2;filter:drop-shadow(0 0 5px rgba(198,255,0,.5))}
+.ring .num{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:22px;color:var(--neon)}
 .step h3{font-size:var(--fs-h3);font-weight:800;text-transform:uppercase;margin:18px 0 8px}
 .step p{font-size:14px;color:var(--gray)}
-@media(max-width:920px){.steps{grid-template-columns:1fr 1fr;gap:30px 22px}.steps::before{display:none}}
+/* linha que liga ao próximo passo */
+.step .conn{position:absolute;top:31px;left:calc(50% + 34px);width:calc(100% - 44px);height:2px;background:var(--neon);opacity:.6;border-radius:2px;transform:scaleX(0);transform-origin:left center;box-shadow:0 0 6px rgba(198,255,0,.4)}
+.step:last-child .conn{display:none}
+/* estado inicial (só com JS): tudo oculto até a seção entrar na tela */
+.js .steps .step{opacity:0;transform:translateY(12px)}
+.js .steps .step h3,.js .steps .step p{opacity:0;transform:translateY(6px)}
+/* sequência automática ao entrar na tela */
+.steps.play .step{animation:stepIn .5s ease forwards;animation-delay:calc(var(--i) * 1.15s)}
+.steps.play .ring .prog{animation:ringFill .85s ease forwards;animation-delay:calc(var(--i) * 1.15s + .2s)}
+.steps.play .step h3{animation:txtIn .45s ease forwards;animation-delay:calc(var(--i) * 1.15s + .55s)}
+.steps.play .step p{animation:txtIn .45s ease forwards;animation-delay:calc(var(--i) * 1.15s + .68s)}
+.steps.play .step .conn{animation:lineGrow .4s ease forwards;animation-delay:calc(var(--i) * 1.15s + .95s)}
+@keyframes stepIn{to{opacity:1;transform:none}}
+@keyframes ringFill{to{stroke-dashoffset:0}}
+@keyframes txtIn{to{opacity:1;transform:none}}
+@keyframes lineGrow{to{transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.js .steps .step,.js .steps .step h3,.js .steps .step p{opacity:1;transform:none}.ring .prog{stroke-dashoffset:0}.step .conn{transform:scaleX(1)}}
+@media(max-width:920px){.steps{grid-template-columns:1fr 1fr;gap:34px 22px}.step .conn{display:none}}
 @media(max-width:540px){.steps{grid-template-columns:1fr}}
 
 /* EMPRESAS */
@@ -337,11 +357,11 @@ footer{background:var(--black2);border-top:1px solid var(--line);padding-block:5
 <section class="sec graphite" id="servicos"><div class="wrap">
   <div class="how-block">
     <div class="lbl"><div class="sec-eyebrow" style="justify-content:center"><span class="eyebrow">Como funciona · em 4 passos</span></div></div>
-    <div class="steps">
-      <div class="step reveal"><div class="num">01</div><h3>Solicite</h3><p>Faça seu pedido de forma rápida.</p></div>
-      <div class="step reveal"><div class="num">02</div><h3>Conectamos</h3><p>O motoboy mais próximo recebe e aceita.</p></div>
-      <div class="step reveal"><div class="num">03</div><h3>Levamos</h3><p>Coleta e transporte com segurança.</p></div>
-      <div class="step reveal"><div class="num">04</div><h3>Entregamos</h3><p>Você acompanha até a chegada.</p></div>
+    <div class="steps" id="steps">
+      <div class="step" style="--i:0"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">1</div></div><span class="conn"></span><h3>Solicite</h3><p>Faça seu pedido de forma rápida.</p></div>
+      <div class="step" style="--i:1"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">2</div></div><span class="conn"></span><h3>Conectamos</h3><p>O motoboy mais próximo recebe e aceita.</p></div>
+      <div class="step" style="--i:2"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">3</div></div><span class="conn"></span><h3>Levamos</h3><p>Coleta e transporte com segurança.</p></div>
+      <div class="step" style="--i:3"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">4</div></div><span class="conn"></span><h3>Entregamos</h3><p>Você acompanha até a chegada.</p></div>
     </div>
   </div>
   <div class="head-c">
@@ -481,6 +501,16 @@ if('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion:redu
   rev.forEach(el=>io.observe(el));
   setTimeout(()=>rev.forEach(el=>el.classList.add('in')),1400); // failsafe
 }else{ rev.forEach(el=>el.classList.add('in')); }
+
+// "Como funciona": dispara a sequência automática quando a seção entra na tela
+const stepsEl=document.getElementById('steps');
+if(stepsEl){
+  if('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion:reduce)').matches){
+    const sio=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('play');sio.unobserve(e.target);}});},{threshold:.35});
+    sio.observe(stepsEl);
+    setTimeout(()=>stepsEl.classList.add('play'),2500); // failsafe
+  }else{ stepsEl.classList.add('play'); }
+}
 
 // form + toast
 const toastEl=$('#toast');let tmr;
