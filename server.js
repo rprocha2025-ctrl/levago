@@ -18,17 +18,33 @@ const MAPS_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY || MAPS_KEY; // chave
 
 // ---- regras de negócio / preços ----
 const CFG = {
-  comissao: 0.18, base: 7.0, porKm: 2.20, kgFree: 5, kgExtra: 0.50,
+  // tarifa cobrada do cliente (inspirada em Uber/Loggi)
+  base: 5.00, porKm: 2.20, porMin: 0.30, kgFree: 5, kgExtra: 0.50,
+  tarifaMinima: 9.90,
+  picoFator: 1.2, picoHoras: [[11,14],[18,21]],   // tarifa dinâmica (pico)
   esperaFreeMin: 5, esperaPorMin: 0.50,
+  // taxas da plataforma (NÃO expostas ao motoboy — só admin)
+  taxaServico: 2.00, comissaoPct: 0.12,
   max: { c: 60, l: 50, a: 50, peso: 25 },
   tipos: ['Documentos / envelopes','Pequeno volume','Alimentos','Compras / mercado','Peças / ferramentas','Outro'],
 };
-function cotar(km, peso) {
-  let v = CFG.base + CFG.porKm * km;
-  if (peso > CFG.kgFree) v += (peso - CFG.kgFree) * CFG.kgExtra;
-  v = Math.round(v * 100) / 100;
-  const comissao = Math.round(v * CFG.comissao * 100) / 100;
-  return { valor: v, comissao, valorMotoboy: Math.round((v - comissao) * 100) / 100 };
+function fatorPico(dt = new Date()) {
+  const h = (dt.getUTCHours() - 3 + 24) % 24;        // horário de Brasília (UTC-3)
+  return CFG.picoHoras.some(([a, b]) => h >= a && h < b) ? CFG.picoFator : 1.0;
+}
+// Retorna a decomposição completa. valor = o que o CLIENTE paga (X);
+// valorMotoboy = X menos todas as taxas da plataforma (Y).
+function cotar(km, min, peso) {
+  let sub = CFG.base + CFG.porKm * km + CFG.porMin * (min || 0);
+  if (peso > CFG.kgFree) sub += (peso - CFG.kgFree) * CFG.kgExtra;
+  sub = Math.max(sub, CFG.tarifaMinima);
+  const fator = fatorPico();
+  const valor = Math.round(sub * fator * 100) / 100;            // X (cliente)
+  const taxaServico = CFG.taxaServico;                          // taxa fixa da plataforma
+  const comissao = Math.round((valor - taxaServico) * CFG.comissaoPct * 100) / 100;
+  const totalRetido = Math.round((taxaServico + comissao) * 100) / 100;
+  const valorMotoboy = Math.round((valor - totalRetido) * 100) / 100;  // Y (motoboy)
+  return { valor, subtotal: Math.round(sub*100)/100, fator, taxaServico, comissao, totalRetido, valorMotoboy };
 }
 function excedeLimite(d) {
   const p = [];
@@ -84,7 +100,8 @@ async function sendEmail(to, subject, text) {
 
 app.get('/api/config', (req, res) => res.json({
   mapsKey: MAPS_KEY, mapsEnabled: !!MAPS_KEY,
-  pricing: { comissao: CFG.comissao, base: CFG.base, porKm: CFG.porKm, kgFree: CFG.kgFree, kgExtra: CFG.kgExtra, esperaFreeMin: CFG.esperaFreeMin, esperaPorMin: CFG.esperaPorMin },
+  // só a tarifa que o cliente enxerga (sem as taxas internas da plataforma)
+  pricing: { base: CFG.base, porKm: CFG.porKm, porMin: CFG.porMin, kgFree: CFG.kgFree, kgExtra: CFG.kgExtra, tarifaMinima: CFG.tarifaMinima, picoFator: CFG.picoFator, picoHoras: CFG.picoHoras, esperaFreeMin: CFG.esperaFreeMin, esperaPorMin: CFG.esperaPorMin },
   max: CFG.max, tipos: CFG.tipos,
 }));
 
@@ -186,7 +203,7 @@ app.post('/api/rides', auth, role('cliente'), async (req, res) => {
     }
   }
   if (km == null) { const r = await rotaKm(o, d); km = r.km; min = r.min; }  // fallback
-  const q = cotar(km, dim.peso);
+  const q = cotar(km, min, dim.peso);
   const u = Users.get.get(req.user.email);
   const ride = {
     id: 'r' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'),
@@ -194,25 +211,26 @@ app.post('/api/rides', auth, role('cliente'), async (req, res) => {
     origem: JSON.stringify(o), destino: JSON.stringify(d),
     tipo: b.tipo || CFG.tipos[0], dim: JSON.stringify(dim), peso: dim.peso,
     km, min_est: min, valor: q.valor, comissao: q.comissao, valor_motoboy: q.valorMotoboy,
+    precos: JSON.stringify({ subtotal: q.subtotal, fator: q.fator, taxaServico: q.taxaServico, comissao: q.comissao, totalRetido: q.totalRetido }),
     criada_em: new Date().toISOString(),
   };
   Rides.insert.run(ride);
-  res.json(rideOut(Rides.get.get(ride.id)));
+  res.json(rideOut(Rides.get.get(ride.id), 'cliente'));
 });
 
-app.get('/api/rides/mine', auth, (req, res) => res.json(Rides.mine.all(req.user.email).map(rideOut)));
-app.get('/api/rides/available', auth, role('motoboy'), (req, res) => res.json(Rides.available.all().map(rideOut)));
+app.get('/api/rides/mine', auth, (req, res) => res.json(Rides.mine.all(req.user.email).map(r => rideOut(r, 'cliente'))));
+app.get('/api/rides/available', auth, role('motoboy'), (req, res) => res.json(Rides.available.all().map(r => rideOut(r, 'motoboy'))));
 app.get('/api/rides/current', auth, role('motoboy'), (req, res) => {
   const ativa = Rides.byMotoboy.all(req.user.email).find(r => ['aceita','a_caminho','aguardando','em_andamento'].includes(r.status));
-  res.json(ativa ? rideOut(ativa) : null);
+  res.json(ativa ? rideOut(ativa, 'motoboy') : null);
 });
-app.get('/api/rides/motoboy', auth, role('motoboy'), (req, res) => res.json(Rides.byMotoboy.all(req.user.email).map(rideOut)));
+app.get('/api/rides/motoboy', auth, role('motoboy'), (req, res) => res.json(Rides.byMotoboy.all(req.user.email).map(r => rideOut(r, 'motoboy'))));
 
 app.post('/api/rides/:id/accept', auth, role('motoboy'), (req, res) => {
   const u = Users.get.get(req.user.email);
   const info = Rides.accept.run(u.email, u.nome, new Date().toISOString(), req.params.id); // atômico: só a 1ª aceita vence
   if (info.changes === 0) return res.status(409).json({ error: 'indisponivel' });
-  res.json(rideOut(Rides.get.get(req.params.id)));
+  res.json(rideOut(Rides.get.get(req.params.id), 'motoboy'));
 });
 
 app.post('/api/rides/:id/status', auth, role('motoboy'), (req, res) => {
@@ -227,7 +245,7 @@ app.post('/api/rides/:id/status', auth, role('motoboy'), (req, res) => {
     Users.addSaldoRide.run(r.valor_motoboy, r.motoboy_email);   // credita carteira (líquido)
   } else if (to === 'a_caminho') Rides.setStatus.run('a_caminho', r.id);
   else return res.status(400).json({ error: 'status_invalido' });
-  res.json(rideOut(Rides.get.get(r.id)));
+  res.json(rideOut(Rides.get.get(r.id), 'motoboy'));
 });
 
 app.post('/api/rides/:id/cancel', auth, (req, res) => {
@@ -263,17 +281,27 @@ app.post('/api/me/banco', auth, role('motoboy'), (req, res) => {
 
 // ---- admin ----
 app.get('/api/admin/users', auth, role('admin'), (req, res) => res.json(Users.all.all().map(pub)));
-app.get('/api/admin/rides', auth, role('admin'), (req, res) => res.json(Rides.all.all().map(rideOut)));
+app.get('/api/admin/rides', auth, role('admin'), (req, res) => res.json(Rides.all.all().map(r => rideOut(r, 'admin'))));
 
-function rideOut(r) {
+// Serialização por perfil:
+//  - motoboy: só vê o que RECEBE (valorMotoboy). Nunca o valor do cliente nem as taxas.
+//  - cliente: vê o total que paga (valor) e o detalhamento da tarifa.
+//  - admin: vê tudo (cliente pagou, motoboy recebeu, taxas retidas).
+function rideOut(r, view = 'admin') {
   if (!r) return null;
-  return { id: r.id, clienteEmail: r.cliente_email, clienteNome: r.cliente_nome,
+  const b = { id: r.id, clienteNome: r.cliente_nome,
     origem: JSON.parse(r.origem||'{}'), destino: JSON.parse(r.destino||'{}'),
     tipo: r.tipo, dim: JSON.parse(r.dim||'{}'), peso: r.peso, km: r.km, minEst: r.min_est,
-    valor: r.valor, comissao: r.comissao, valorMotoboy: r.valor_motoboy, status: r.status,
-    motoboyEmail: r.motoboy_email, motoboyNome: r.motoboy_nome,
+    status: r.status, motoboyEmail: r.motoboy_email, motoboyNome: r.motoboy_nome,
     criadaEm: r.criada_em, aceitaEm: r.aceita_em, chegouEm: r.chegou_em, concluidaEm: r.concluida_em,
     avalCliente: r.aval_cliente, avalMotoboy: r.aval_motoboy, paga: !!r.paga };
+  if (view === 'motoboy') return { ...b, valorMotoboy: r.valor_motoboy };
+  const p = JSON.parse(r.precos || '{}');
+  if (view === 'cliente') return { ...b, clienteEmail: r.cliente_email, valor: r.valor, fator: p.fator || 1, subtotal: p.subtotal };
+  // admin — decomposição completa
+  return { ...b, clienteEmail: r.cliente_email, valor: r.valor, valorCliente: r.valor,
+    subtotal: p.subtotal, fator: p.fator || 1, taxaServico: p.taxaServico, comissao: r.comissao,
+    totalRetido: p.totalRetido, valorMotoboy: r.valor_motoboy };
 }
 
 // a plataforma (login + painéis) fica em /app; a landing institucional em /

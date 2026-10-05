@@ -24,11 +24,22 @@ async function api(path, opts={}){
   return data;
 }
 
-function cotarLocal(km,peso){
-  const p=CFG.pricing; let v=p.base+p.porKm*km;
-  if(peso>p.kgFree) v+=(peso-p.kgFree)*p.kgExtra;
-  v=Math.round(v*100)/100; const comissao=Math.round(v*p.comissao*100)/100;
-  return {valor:v,comissao,valorMotoboy:Math.round((v-comissao)*100)/100};
+function fatorPicoLocal(){
+  const p=CFG.pricing; if(!p.picoHoras) return 1;
+  const h=(new Date().getUTCHours()-3+24)%24;
+  return p.picoHoras.some(([a,b])=>h>=a&&h<b)?(p.picoFator||1):1;
+}
+// calcula apenas o valor que o CLIENTE paga (com detalhamento estilo Uber)
+function cotarLocal(km,min,peso){
+  const p=CFG.pricing;
+  const vBase=p.base, vDist=p.porKm*km, vTempo=p.porMin*(min||0);
+  const vPeso=(peso>p.kgFree)?(peso-p.kgFree)*p.kgExtra:0;
+  let sub=vBase+vDist+vTempo+vPeso;
+  const aplicouMin = sub < p.tarifaMinima;
+  sub=Math.max(sub,p.tarifaMinima);
+  const fator=fatorPicoLocal();
+  const valor=Math.round(sub*fator*100)/100;
+  return {valor, vBase, vDist, vTempo, vPeso, fator, aplicouMin, min:min||Math.max(4,Math.round(km/22*60))};
 }
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -341,14 +352,19 @@ function updateQuote(){
   const q=$('#quote');
   const temEnd=ped.o.rua&&ped.o.numero&&ped.o.bairro&&ped.d.rua&&ped.d.numero&&ped.d.bairro;
   if(!km||!temEnd){q.innerHTML=quotePlaceholder();return;}
-  const pr=cotarLocal(km,p>0?p:0);
   const min=ped._min||Math.max(4,Math.round(km/22*60));
+  const pr=cotarLocal(km,min,p>0?p:0);
+  const lin=(nome,val)=>`<div class="lin"><span>${nome}</span><b>${brl(val)}</b></div>`;
   q.innerHTML=`<div class="qbadge">🏍️ LEVA Moto</div>
     <div class="qprice">${brl(pr.valor)}</div>
     <div class="qmeta">★ 5,0 · ${min} min (${km.toFixed(1)} km) de distância</div>
     <div class="qaddr">
       <div class="qa"><span class="dotg"></span><div>${esc(ped.o.rua)}, ${esc(ped.o.numero)}<br><span class="muted small">${esc(ped.o.bairro)}</span></div></div>
       <div class="qa"><span class="dotb"></span><div>${esc(ped.d.rua)}, ${esc(ped.d.numero)}<br><span class="muted small">${esc(ped.d.bairro)}</span></div></div>
+    </div>
+    <div class="pricebox" style="margin-bottom:14px">
+      ${pr.aplicouMin?lin('Tarifa mínima',CFG.pricing.tarifaMinima):`${lin('Tarifa base',pr.vBase)}${lin('Distância ('+km.toFixed(1)+' km)',pr.vDist)}${lin('Tempo ('+min+' min)',pr.vTempo)}${pr.vPeso>0?lin('Peso extra',pr.vPeso):''}`}
+      ${pr.fator>1?lin('Tarifa dinâmica (pico ×'+pr.fator+')',Math.round((pr.valor-pr.valor/pr.fator)*100)/100):''}
     </div>
     <div id="itemwarn"></div>
     <button class="btn btn-neon btn-block" id="chamar">Chamar moto · ${brl(pr.valor)}</button>
@@ -427,11 +443,13 @@ function renderAtual(r){
 function motoCarteira(){ setBody('<div class="empty">Carregando…</div>'); setPoll(async()=>{try{const [u,rides]=await Promise.all([api('/me'),api('/rides/motoboy')]);USER=u;renderCarteira(u,rides);}catch(e){}},6000); }
 function renderCarteira(u,rides){
   const feitas=(rides||[]).filter(r=>r.status==='concluida'||r.status==='paga');
-  const bruto=feitas.reduce((s,r)=>s+r.valor,0),liq=feitas.reduce((s,r)=>s+r.valorMotoboy,0),com=feitas.reduce((s,r)=>s+r.comissao,0);
-  setBody(`<div class="grid g3" style="margin-bottom:16px">
-    <div class="kpi hl"><div class="lab">Saldo disponível</div><div class="val">${brl(u.saldo)}</div><div class="delta">líquido, já com desconto da plataforma</div></div>
-    <div class="kpi"><div class="lab">Faturamento bruto</div><div class="val">${brl(bruto)}</div><div class="delta">${feitas.length} entregas</div></div>
-    <div class="kpi"><div class="lab">Taxa plataforma (${(CFG.pricing.comissao*100).toFixed(0)}%)</div><div class="val"><small>${brl(com)}</small></div></div></div>
+  const totalGanho=feitas.reduce((s,r)=>s+(r.valorMotoboy||0),0);
+  const mediaGanho=feitas.length?totalGanho/feitas.length:0;
+  setBody(`<div class="banner info">Aqui aparece <b>o que você recebe</b> por corrida — já é o valor líquido, livre de qualquer desconto.</div>
+    <div class="grid g3" style="margin-bottom:16px">
+    <div class="kpi hl"><div class="lab">Saldo disponível</div><div class="val">${brl(u.saldo)}</div><div class="delta">pronto para transferir</div></div>
+    <div class="kpi"><div class="lab">Total recebido</div><div class="val">${brl(totalGanho)}</div><div class="delta">${feitas.length} entregas concluídas</div></div>
+    <div class="kpi"><div class="lab">Média por corrida</div><div class="val">${brl(mediaGanho)}</div><div class="delta">seu ganho médio</div></div></div>
     <div class="card"><h3>Transferir para meu banco</h3><div class="sub">Sem saque — apenas transferência (PIX ou TED/DOC).</div>
       ${u.banco?`<div class="banner ok">Conta: ${esc(u.banco.tipo)} · ${esc(u.banco.chave)}</div>`:'<div class="banner warn">Cadastre uma conta para transferir.</div>'}
       <div class="row2"><div class="field"><label>Tipo</label><select id="bk_tipo"><option>PIX</option><option>TED/DOC</option></select></div>
@@ -439,8 +457,8 @@ function renderCarteira(u,rides){
       <div class="flex"><button class="btn btn-out btn-sm" id="salvarBanco">Salvar conta</button><div class="spacer"></div>
         <div class="field" style="margin:0;min-width:150px"><input id="bk_valor" type="number" placeholder="valor" step="0.01" max="${u.saldo}"></div>
         <button class="btn btn-neon btn-sm" id="transferir">Transferir</button></div></div>
-    <div class="card"><h3>Extrato</h3>${feitas.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Corrida</th><th>Bruto</th><th>Taxa</th><th>Você recebeu</th></tr></thead><tbody>
-      ${feitas.sort((a,b)=>(b.concluidaEm||'').localeCompare(a.concluidaEm||'')).map(r=>`<tr><td>${r.concluidaEm?new Date(r.concluidaEm).toLocaleDateString('pt-BR'):'-'}</td><td>${esc(r.tipo)}</td><td>${brl(r.valor)}</td><td class="muted">-${brl(r.comissao)}</td><td class="neon"><b>${brl(r.valorMotoboy)}</b></td></tr>`).join('')}
+    <div class="card"><h3>Extrato</h3><div class="sub">Valor que você recebeu em cada entrega</div>${feitas.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Corrida</th><th>Trajeto</th><th>Você recebeu</th></tr></thead><tbody>
+      ${feitas.sort((a,b)=>(b.concluidaEm||'').localeCompare(a.concluidaEm||'')).map(r=>`<tr><td>${r.concluidaEm?new Date(r.concluidaEm).toLocaleDateString('pt-BR'):'-'}</td><td>${esc(r.tipo)}</td><td class="small muted">${esc(r.origem.bairro)} → ${esc(r.destino.bairro)}</td><td class="neon"><b>${brl(r.valorMotoboy)}</b></td></tr>`).join('')}
     </tbody></table></div>`:'<div class="empty">Sem entregas concluídas.</div>'}</div>`);
   $('#salvarBanco').onclick=async()=>{const chave=$('#bk_chave').value.trim();if(!chave){toast('Informe a chave',1);return;}try{USER=await api('/me/banco',{method:'POST',body:{tipo:$('#bk_tipo').value,chave}});toast('Conta salva');renderTab();}catch(e){toast('Erro',1);}};
   $('#transferir').onclick=()=>{const val=+$('#bk_valor').value;if(!u.banco){toast('Cadastre uma conta',1);return;}if(!(val>0)||val>u.saldo){toast('Valor inválido',1);return;}toast('Transferência de '+brl(val)+' solicitada (requer gateway de pagamento real).');};
@@ -464,23 +482,44 @@ function renderKpis(users,rides){
   const concl=rides.filter(r=>r.status==='concluida'||r.status==='paga');
   const canc=rides.filter(r=>r.status==='cancelada').length;
   const ativas=rides.filter(r=>['solicitada','aceita','a_caminho','aguardando','em_andamento'].includes(r.status)).length;
-  const gmv=concl.reduce((s,r)=>s+r.valor,0),receita=concl.reduce((s,r)=>s+r.comissao,0);
-  const ticket=concl.length?gmv/concl.length:0,total=rides.length;
+  const total=rides.length;
+  const gmv=concl.reduce((s,r)=>s+(r.valor||0),0);              // cliente pagou (X)
+  const repasse=concl.reduce((s,r)=>s+(r.valorMotoboy||0),0);   // motoboy recebeu (Y)
+  const receita=concl.reduce((s,r)=>s+(r.totalRetido||0),0);    // plataforma reteve (X-Y)
+  const ticket=concl.length?gmv/concl.length:0;
+  const ganhoMed=concl.length?repasse/concl.length:0;
+  const margem=gmv?receita/gmv*100:0;
+  const pRep=gmv?Math.round(repasse/gmv*100):0, pRec=gmv?Math.round(receita/gmv*100):0;
   const bairros={};rides.forEach(r=>{if(r.origem&&r.origem.bairro)bairros[r.origem.bairro]=(bairros[r.origem.bairro]||0)+1;});
   const topB=Object.entries(bairros).sort((a,b)=>b[1]-a[1]).slice(0,6),maxB=topB[0]?topB[0][1]:1;
-  setBody(`<div class="banner info">Indicadores em tempo real do banco.</div>
+  setBody(`<div class="banner info">Controle financeiro completo em tempo real — você vê quanto o cliente pagou, quanto o motoboy recebeu e quanto a plataforma reteve.</div>
   <div class="grid g4" style="margin-bottom:16px">
-    <div class="kpi hl"><div class="lab">GMV</div><div class="val">${brl(gmv)}</div><div class="delta">${concl.length} concluídas</div></div>
-    <div class="kpi hl"><div class="lab">Receita plataforma</div><div class="val">${brl(receita)}</div><div class="delta">comissão ${(CFG.pricing.comissao*100).toFixed(0)}%</div></div>
-    <div class="kpi"><div class="lab">Ticket médio</div><div class="val">${brl(ticket)}</div></div>
-    <div class="kpi"><div class="lab">Corridas ativas</div><div class="val">${ativas}</div></div></div>
+    <div class="kpi hl"><div class="lab">GMV · Clientes pagaram</div><div class="val">${brl(gmv)}</div><div class="delta">${concl.length} corridas concluídas</div></div>
+    <div class="kpi"><div class="lab">Repasse aos motoboys</div><div class="val">${brl(repasse)}</div><div class="delta">${pRep}% do GMV</div></div>
+    <div class="kpi hl"><div class="lab">Receita retida (plataforma)</div><div class="val">${brl(receita)}</div><div class="delta">${pRec}% do GMV</div></div>
+    <div class="kpi"><div class="lab">Margem média</div><div class="val">${margem.toFixed(1)}<small>%</small></div><div class="delta">retido ÷ GMV</div></div></div>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="kpi"><div class="lab">Ticket médio (cliente)</div><div class="val">${brl(ticket)}</div></div>
+    <div class="kpi"><div class="lab">Ganho médio (motoboy)</div><div class="val">${brl(ganhoMed)}</div></div>
+    <div class="kpi"><div class="lab">Corridas ativas</div><div class="val">${ativas}</div></div>
+    <div class="kpi"><div class="lab">Total de corridas</div><div class="val">${total}</div></div></div>
   <div class="grid g4" style="margin-bottom:16px">
     <div class="kpi"><div class="lab">Clientes</div><div class="val">${clientes}</div></div>
     <div class="kpi"><div class="lab">Motoboys</div><div class="val">${motoboys}</div></div>
-    <div class="kpi"><div class="lab">Conclusão</div><div class="val">${total?Math.round(concl.length/total*100):0}<small>%</small></div></div>
-    <div class="kpi"><div class="lab">Cancelamento</div><div class="val">${total?Math.round(canc/total*100):0}<small>%</small></div></div></div>
-  <div class="card"><h3>Demanda por bairro (coleta)</h3><div class="sub">Onde concentrar motoboys</div>
-    ${topB.length?topB.map(([b,n])=>`<div style="margin-bottom:12px"><div class="flex small"><span>${esc(b)}</span><div class="spacer"></div><b>${n}</b></div><div class="meter"><i style="width:${Math.round(n/maxB*100)}%"></i></div></div>`).join(''):'<div class="empty">Sem dados.</div>'}</div>`);
+    <div class="kpi"><div class="lab">Taxa de conclusão</div><div class="val">${total?Math.round(concl.length/total*100):0}<small>%</small></div></div>
+    <div class="kpi"><div class="lab">Taxa de cancelamento</div><div class="val">${total?Math.round(canc/total*100):0}<small>%</small></div></div></div>
+  <div class="grid g2">
+    <div class="card"><h3>Repartição do faturamento</h3><div class="sub">Como o que o cliente paga se divide</div>
+      <div style="display:flex;height:26px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin:10px 0 14px">
+        <div style="width:${pRep}%;background:var(--neon)"></div><div style="width:${pRec}%;background:var(--blue)"></div></div>
+      <div class="list">
+        <div class="item"><div class="main"><div class="t">Cliente pagou (GMV)</div></div><b>${brl(gmv)}</b></div>
+        <div class="item"><div class="main"><div class="t"><span style="color:var(--neon)">■</span> Motoboys receberam</div></div><b>${brl(repasse)}</b></div>
+        <div class="item"><div class="main"><div class="t"><span style="color:var(--blue)">■</span> Plataforma reteve</div></div><b>${brl(receita)}</b></div>
+      </div></div>
+    <div class="card"><h3>Demanda por bairro (coleta)</h3><div class="sub">Onde concentrar motoboys</div>
+      ${topB.length?topB.map(([b,n])=>`<div style="margin-bottom:12px"><div class="flex small"><span>${esc(b)}</span><div class="spacer"></div><b>${n}</b></div><div class="meter"><i style="width:${Math.round(n/maxB*100)}%"></i></div></div>`).join(''):'<div class="empty">Sem dados.</div>'}</div>
+  </div>`);
 }
 function admCadastros(){ setBody('<div class="empty">Carregando…</div>'); setPoll(async()=>{try{renderCadastros(await api('/admin/users'));}catch(e){}},8000); }
 function renderCadastros(users){
@@ -492,8 +531,8 @@ function renderCadastros(users){
 function admCorridas(){ setBody('<div class="empty">Carregando…</div>'); setPoll(async()=>{try{renderCorridasAdmin(await api('/admin/rides'));}catch(e){}},6000); }
 function renderCorridasAdmin(rides){
   setBody(`<div class="card"><h3>Corridas (${rides.length})</h3><div class="sub">Histórico e status</div>
-    ${rides.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Motoboy</th><th>Trajeto</th><th>Valor</th><th>Comissão</th><th>Status</th></tr></thead><tbody>
-    ${rides.map(r=>`<tr><td class="small">${new Date(r.criadaEm).toLocaleString('pt-BR')}</td><td>${esc(r.clienteNome)}</td><td>${esc(r.motoboyNome||'-')}</td><td class="small">${esc(r.origem.bairro)} → ${esc(r.destino.bairro)}</td><td><b>${brl(r.valor)}</b></td><td class="muted">${brl(r.comissao)}</td><td><span class="tag ${r.status}">${labelStatus(r.status)}</span></td></tr>`).join('')}
+    ${rides.length?`<div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Motoboy</th><th>Trajeto</th><th>Cliente pagou</th><th>Motoboy recebeu</th><th>Plataforma reteve</th><th>Status</th></tr></thead><tbody>
+    ${rides.map(r=>`<tr><td class="small">${new Date(r.criadaEm).toLocaleString('pt-BR')}</td><td>${esc(r.clienteNome)}</td><td>${esc(r.motoboyNome||'-')}</td><td class="small">${esc(r.origem.bairro)} → ${esc(r.destino.bairro)}</td><td><b>${brl(r.valor)}</b></td><td class="neon">${brl(r.valorMotoboy)}</td><td class="muted">${brl(r.totalRetido)}</td><td><span class="tag ${r.status}">${labelStatus(r.status)}</span></td></tr>`).join('')}
     </tbody></table></div>`:'<div class="empty">Nenhuma corrida.</div>'}</div>`);
 }
 

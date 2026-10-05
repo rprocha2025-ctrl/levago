@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS rides (
   origem TEXT, destino TEXT,
   tipo TEXT, dim TEXT, peso REAL,
   km REAL, min_est INTEGER,
-  valor REAL, comissao REAL, valor_motoboy REAL,
+  valor REAL, comissao REAL, valor_motoboy REAL, precos TEXT,
   extras REAL DEFAULT 0, espera REAL DEFAULT 0,
   status TEXT NOT NULL,
   motoboy_email TEXT, motoboy_nome TEXT,
@@ -74,8 +74,8 @@ export const Users = {
 // ---- corridas ----
 export const Rides = {
   insert: db.prepare(`INSERT INTO rides
-    (id,cliente_email,cliente_nome,origem,destino,tipo,dim,peso,km,min_est,valor,comissao,valor_motoboy,extras,espera,status,criada_em,paga)
-    VALUES (@id,@cliente_email,@cliente_nome,@origem,@destino,@tipo,@dim,@peso,@km,@min_est,@valor,@comissao,@valor_motoboy,0,0,'solicitada',@criada_em,0)`),
+    (id,cliente_email,cliente_nome,origem,destino,tipo,dim,peso,km,min_est,valor,comissao,valor_motoboy,precos,extras,espera,status,criada_em,paga)
+    VALUES (@id,@cliente_email,@cliente_nome,@origem,@destino,@tipo,@dim,@peso,@km,@min_est,@valor,@comissao,@valor_motoboy,@precos,0,0,'solicitada',@criada_em,0)`),
   get: db.prepare('SELECT * FROM rides WHERE id = ?'),
   mine: db.prepare('SELECT * FROM rides WHERE cliente_email = ? ORDER BY criada_em DESC'),
   available: db.prepare("SELECT * FROM rides WHERE status = 'solicitada' ORDER BY criada_em ASC"),
