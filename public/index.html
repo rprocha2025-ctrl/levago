@@ -165,12 +165,11 @@ h2.big{font-size:var(--fs-h2);font-weight:800;text-transform:uppercase;line-heig
 .how{background:var(--black2);border-block:1px solid var(--line)}
 .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;position:relative}
 .step{position:relative;text-align:center}
-@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
-/* anel em CSS (conic-gradient) — sem SVG, sem quadrado preto */
-.ring{position:relative;width:64px;height:64px;margin:0 auto;border-radius:50%;--ang:0deg;
-  background:conic-gradient(var(--neon) var(--ang), var(--line2) 0);
-  -webkit-mask:radial-gradient(farthest-side,#0000 79%,#000 81%);
-          mask:radial-gradient(farthest-side,#0000 79%,#000 81%)}
+/* anel em SVG (stroke-dashoffset) — preenche em volta do número, sem quadrado */
+.ring{position:relative;width:64px;height:64px;margin:0 auto}
+.ring svg{width:64px;height:64px;display:block;transform:rotate(-90deg)}
+.ring .track{fill:none;stroke:var(--line2);stroke-width:3}
+.ring .prog{fill:none;stroke:var(--neon);stroke-width:3;stroke-linecap:round;stroke-dasharray:182.2;stroke-dashoffset:182.2;filter:drop-shadow(0 0 5px rgba(198,255,0,.5))}
 .ring .num{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:22px;color:var(--neon)}
 .step h3{font-size:var(--fs-h3);font-weight:800;text-transform:uppercase;margin:18px 0 8px}
 .step p{font-size:14px;color:var(--gray)}
@@ -180,15 +179,15 @@ h2.big{font-size:var(--fs-h2);font-weight:800;text-transform:uppercase;line-heig
 /* estado inicial (só com JS): oculto até a sequência rodar */
 .js .steps .step{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
 .js .steps .step h3,.js .steps .step p{opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease}
-.js .steps .ring{transition:--ang 1.3s ease .2s}
+.js .steps .ring .prog{transition:stroke-dashoffset 1.3s ease .2s}
 .js .steps .step .conn{transition:transform .5s ease}
 /* estado ativo — a classe .on é adicionada passo a passo pelo JS (~2s cada) */
 .steps .step.on{opacity:1;transform:none}
 .steps .step.on h3{opacity:1;transform:none;transition-delay:.9s}
 .steps .step.on p{opacity:1;transform:none;transition-delay:1.02s}
-.steps .step.on .ring{--ang:360deg}
+.steps .step.on .ring .prog{stroke-dashoffset:0}
 .steps .step.on .conn{transform:scaleX(1);transition-delay:1.45s}
-@media(prefers-reduced-motion:reduce){.js .steps .step,.js .steps .step h3,.js .steps .step p{opacity:1;transform:none;transition:none}.ring{--ang:360deg}.step .conn{transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.js .steps .step,.js .steps .step h3,.js .steps .step p{opacity:1;transform:none;transition:none}.ring .prog{stroke-dashoffset:0}.step .conn{transform:scaleX(1)}}
 @media(max-width:920px){.steps{grid-template-columns:1fr 1fr;gap:34px 22px}.step .conn{display:none}}
 @media(max-width:540px){.steps{grid-template-columns:1fr}}
 
@@ -358,10 +357,10 @@ footer{background:var(--black2);border-top:1px solid var(--line);padding-block:5
   <div class="how-block">
     <div class="lbl"><div class="sec-eyebrow" style="justify-content:center"><span class="eyebrow">Como funciona · em 4 passos</span></div></div>
     <div class="steps" id="steps">
-      <div class="step"><div class="ring"><div class="num">1</div></div><span class="conn"></span><h3>Solicite</h3><p>Faça seu pedido de forma rápida.</p></div>
-      <div class="step"><div class="ring"><div class="num">2</div></div><span class="conn"></span><h3>Conectamos</h3><p>O motoboy mais próximo recebe e aceita.</p></div>
-      <div class="step"><div class="ring"><div class="num">3</div></div><span class="conn"></span><h3>Levamos</h3><p>Coleta e transporte com segurança.</p></div>
-      <div class="step"><div class="ring"><div class="num">4</div></div><span class="conn"></span><h3>Entregamos</h3><p>Você acompanha até a chegada.</p></div>
+      <div class="step"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">1</div></div><span class="conn"></span><h3>Solicite</h3><p>Faça seu pedido de forma rápida.</p></div>
+      <div class="step"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">2</div></div><span class="conn"></span><h3>Conectamos</h3><p>O motoboy mais próximo recebe e aceita.</p></div>
+      <div class="step"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">3</div></div><span class="conn"></span><h3>Levamos</h3><p>Coleta e transporte com segurança.</p></div>
+      <div class="step"><div class="ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="29"/><circle class="prog" cx="32" cy="32" r="29"/></svg><div class="num">4</div></div><span class="conn"></span><h3>Entregamos</h3><p>Você acompanha até a chegada.</p></div>
     </div>
   </div>
   <div class="head-c">
