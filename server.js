@@ -133,16 +133,16 @@ function labelDe(s) {
 }
 // região de Mogi Guaçu — usada só como PREFERÊNCIA (desempate), NÃO como limite. A busca é nível Brasil.
 const BBOX = { minLon: -47.25, minLat: -22.70, maxLon: -46.55, maxLat: -22.00 };
-// usa só o que foi digitado antes da vírgula (a rua). bairro/cidade vêm da sugestão escolhida.
-const soRua = q => String(q).split(',')[0].replace(/\s+/g, ' ').trim();
+// troca vírgula por espaço (assim "rua X, cidade Y" vira texto livre e a cidade AJUDA a achar o endereço)
+const limpaQ = q => String(q).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
 async function fetchT(url, ms = 2600) {
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
   try { return await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } }); }
   finally { clearTimeout(t); }
 }
 async function viaPhoton(q) {
-  // busca nível Brasil; lat/lon só dá leve preferência à região (sem restringir)
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=10&lat=${MGCENTER.lat}&lon=${MGCENTER.lng}`;
+  // busca nível Brasil, ordenada por relevância/importância (sem viés de região)
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=10`;
   const r = await fetchT(url);
   const j = await r.json();
   return ((j && j.features) || [])
@@ -159,9 +159,8 @@ async function viaPhoton(q) {
     .filter(s => s.rua && s.lat != null);
 }
 async function viaNominatim(q) {
-  // busca nível Brasil (countrycodes=br). viewbox SEM bounded = só preferência pela região, não limite.
-  const vb = `${BBOX.minLon},${BBOX.maxLat},${BBOX.maxLon},${BBOX.minLat}`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=10&addressdetails=1&countrycodes=br&accept-language=pt-BR&viewbox=${vb}`;
+  // busca nível Brasil inteiro (countrycodes=br), sem restrição de região
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=10&addressdetails=1&countrycodes=br&accept-language=pt-BR`;
   const r = await fetchT(url);
   const j = await r.json();
   return (Array.isArray(j) ? j : []).map(it => {
@@ -186,7 +185,7 @@ function ranquear(sug, termo) {
 // cache simples em memória (60s) para respostas instantâneas em re-digitação
 const geoCache = new Map();
 app.get('/api/geocode', async (req, res) => {
-  const q = soRua(req.query.q || '');
+  const q = limpaQ(req.query.q || '');
   if (q.length < 3) return res.json({ sugestoes: [] });
   const key = q.toLowerCase();
   const hit = geoCache.get(key);
