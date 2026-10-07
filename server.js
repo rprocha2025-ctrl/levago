@@ -155,6 +155,14 @@ async function fetchT(url, ms = 2600) {
   try { return await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } }); }
   finally { clearTimeout(t); }
 }
+// trava RÍGIDA: garante que a promessa termine em `ms`, mesmo se o fetch travar no DNS/corpo
+// (o AbortController sozinho não corta DNS frio). Em timeout, resolve com o fallback (padrão: []).
+function hardTimeout(promise, ms, fallback = []) {
+  return Promise.race([
+    promise.catch(() => fallback),
+    new Promise(res => setTimeout(() => res(fallback), ms)),
+  ]);
+}
 async function viaPhoton(q) {
   // busca nível Brasil, ordenada por relevância/importância (sem viés de região)
   const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=default&limit=10`;
@@ -219,16 +227,17 @@ app.get('/api/geocode', async (req, res) => {
 
   let sug = [];
   if (cep) {
-    // CEP: Nominatim resolve melhor por código postal
-    try { sug = await viaNominatim(cepNum.slice(0, 5) + '-' + cepNum.slice(5)); } catch (e) {}
-    if (!sug.length) { try { sug = await viaPhoton(cepNum); } catch (e) {} }
+    // CEP: Nominatim resolve melhor por código postal; Photon como reforço
+    sug = await hardTimeout(viaNominatim(cepNum.slice(0, 5) + '-' + cepNum.slice(5)), 5000);
+    if (!sug.length) sug = await hardTimeout(viaPhoton(cepNum), 4000);
   } else {
-    try { sug = await viaPhoton(q); } catch (e) {}
-    // se o Photon não trouxe a rua digitada, complementa com o Nominatim (mais cobertura)
-    if (!temBomMatch(sug, q)) {
-      let nom = []; try { nom = await viaNominatim(q); } catch (e) {}
-      sug = sug.concat(nom);
-    }
+    // Photon + Nominatim EM PARALELO, cada um com teto rígido -> resposta em ~4s no pior caso,
+    // união dos resultados (mais cobertura: rua que um não acha, o outro pode achar).
+    const [ph, nm] = await Promise.all([
+      hardTimeout(viaPhoton(q), 4000),
+      hardTimeout(viaNominatim(q), 4500),
+    ]);
+    sug = ph.concat(nm);
   }
   // remove duplicados (rua+bairro+cidade) e ranqueia pela relevância do texto digitado
   const vistos = new Set();
