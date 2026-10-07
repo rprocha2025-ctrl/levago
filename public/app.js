@@ -106,6 +106,7 @@ function fileParaDataURL(file,maxPx=1000,q=0.72){
 (async function boot(){
   try{ CFG = await api('/config'); }catch(e){ CFG={pricing:{comissao:.18,base:7,porKm:2.2,kgFree:5,kgExtra:.5,esperaFreeMin:5,esperaPorMin:.5},max:{c:60,l:50,a:50,peso:25},tipos:['Outro'],mapsEnabled:false}; }
   if(TOKEN){ try{ USER = await api('/me'); }catch(e){ TOKEN=null; localStorage.removeItem('leva_token'); } }
+  fetch('/api/geocode?q=rua').catch(()=>{});  // aquece o geocoder (Photon) para a 1ª busca do usuário ser rápida
   render();
 })();
 

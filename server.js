@@ -133,8 +133,23 @@ function labelDe(s) {
 }
 // região de Mogi Guaçu — usada só como PREFERÊNCIA (desempate), NÃO como limite. A busca é nível Brasil.
 const BBOX = { minLon: -47.25, minLat: -22.70, maxLon: -46.55, maxLat: -22.00 };
-// troca vírgula por espaço (assim "rua X, cidade Y" vira texto livre e a cidade AJUDA a achar o endereço)
-const limpaQ = q => String(q).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+// abreviações comuns de endereço BR -> forma por extenso (o OpenStreetMap usa a forma completa)
+const ABREV = {
+  'av':'avenida','r':'rua','rod':'rodovia','estr':'estrada','trav':'travessa','tv':'travessa',
+  'al':'alameda','pc':'praça','pca':'praça','pça':'praça','praca':'praça','lgo':'largo',
+  'jd':'jardim','pq':'parque','vl':'vila','pe':'padre','dr':'doutor','dra':'doutora',
+  'prof':'professor','profa':'professora','sto':'santo','sta':'santa','cel':'coronel',
+  'gal':'general','pres':'presidente','eng':'engenheiro','mal':'marechal','ver':'vereador','cap':'capitão'
+};
+// troca vírgula por espaço, expande abreviações e remove o número da casa ("rua X 450" -> "rua X"),
+// preservando ruas que têm número no nome ("rua 7 de setembro", "avenida 9 de julho").
+function limpaQ(q) {
+  let s = String(q).replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  let t = s.split(' ').map(w => ABREV[w.toLowerCase().replace(/\.$/, '')] || w);  // expande "av.", "r.", "pça"...
+  const out = t.filter(w => !(/^\d{3,}$/.test(w) && t.length > 1));                 // remove nº da casa (3+ dígitos)
+  return (out.length ? out : t).join(' ').trim();
+}
+const ehCep = s => /^\d{8}$/.test(String(s).replace(/\D/g, '')) && String(s).replace(/\D/g, '').length === 8;
 async function fetchT(url, ms = 2600) {
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
   try { return await fetch(url, { signal: ac.signal, headers: { 'User-Agent': 'LEVA-motofrete/1.0 (contato@leva.app)' } }); }
@@ -182,20 +197,42 @@ function ranquear(sug, termo) {
   const score = s => { const r = norm(s.rua); let n = 0; for (const w of palavras) if (r.includes(w)) n++; return n; };
   return sug.map(s => ({ s, n: score(s) })).sort((a, b) => b.n - a.n).map(x => x.s);
 }
+// true se alguma sugestão tem a rua que foi realmente digitada (ignora "rua/avenida/..." genéricos)
+function temBomMatch(sug, q) {
+  const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const gen = new Set(['rua', 'r', 'avenida', 'av', 'travessa', 'tv', 'alameda', 'al', 'praca', 'praça', 'rodovia', 'estrada', 'largo', 'via', 'de', 'da', 'do', 'dos', 'das']);
+  const core = norm(q).split(/\s+/).filter(w => w.length > 2 && !gen.has(w));
+  if (!core.length) return sug.length > 0;
+  return sug.some(s => { const r = norm(s.rua); return core.every(w => r.includes(w)); });
+}
 // cache simples em memória (60s) para respostas instantâneas em re-digitação
 const geoCache = new Map();
 app.get('/api/geocode', async (req, res) => {
-  const q = limpaQ(req.query.q || '');
-  if (q.length < 3) return res.json({ sugestoes: [] });
-  const key = q.toLowerCase();
+  const raw = String(req.query.q || '').trim();
+  const q = limpaQ(raw);
+  const cepNum = raw.replace(/\D/g, '');
+  const cep = cepNum.length === 8;
+  if (!cep && q.length < 3) return res.json({ sugestoes: [] });
+  const key = (cep ? cepNum : q).toLowerCase();
   const hit = geoCache.get(key);
   if (hit && Date.now() - hit.t < 60000) return res.json({ sugestoes: hit.v });
+
   let sug = [];
-  try { sug = await viaPhoton(q); } catch (e) { /* tenta fallback */ }
-  if (!sug.length) { try { sug = await viaNominatim(q); } catch (e) { /* vazio */ } }
-  // remove duplicados (mesma rua+bairro) e ranqueia pela relevância do texto digitado
+  if (cep) {
+    // CEP: Nominatim resolve melhor por código postal
+    try { sug = await viaNominatim(cepNum.slice(0, 5) + '-' + cepNum.slice(5)); } catch (e) {}
+    if (!sug.length) { try { sug = await viaPhoton(cepNum); } catch (e) {} }
+  } else {
+    try { sug = await viaPhoton(q); } catch (e) {}
+    // se o Photon não trouxe a rua digitada, complementa com o Nominatim (mais cobertura)
+    if (!temBomMatch(sug, q)) {
+      let nom = []; try { nom = await viaNominatim(q); } catch (e) {}
+      sug = sug.concat(nom);
+    }
+  }
+  // remove duplicados (rua+bairro+cidade) e ranqueia pela relevância do texto digitado
   const vistos = new Set();
-  sug = ranquear(sug, q).filter(s => { const k = (s.rua + '|' + s.bairro).toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true; });
+  sug = ranquear(sug, q).filter(s => { const k = (s.rua + '|' + s.bairro + '|' + s.cidade).toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true; });
   const out = sug.slice(0, 6);
   geoCache.set(key, { t: Date.now(), v: out });
   res.json({ sugestoes: out });
@@ -499,3 +536,11 @@ seedDemoIfEmpty();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`LEVA server em http://localhost:${PORT}  (maps: ${MAPS_KEY ? 'configurado' : 'SEM CHAVE'})`));
+
+// keep-alive: evita a hibernação do plano free do Render (que causa ~26s na 1ª busca).
+// O Render fornece RENDER_EXTERNAL_URL automaticamente; auto-ping a cada 12 min mantém a instância acordada.
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
+if (SELF_URL && PROD) {
+  setInterval(() => { fetch(SELF_URL.replace(/\/$/, '') + '/api/config').catch(() => {}); }, 12 * 60 * 1000);
+  console.log('keep-alive ativo:', SELF_URL);
+}
