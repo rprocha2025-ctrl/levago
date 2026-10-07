@@ -540,7 +540,14 @@ app.listen(PORT, () => console.log(`LEVA server em http://localhost:${PORT}  (ma
 // keep-alive: evita a hibernação do plano free do Render (que causa ~26s na 1ª busca).
 // O Render fornece RENDER_EXTERNAL_URL automaticamente; auto-ping a cada 12 min mantém a instância acordada.
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
-if (SELF_URL && PROD) {
-  setInterval(() => { fetch(SELF_URL.replace(/\/$/, '') + '/api/config').catch(() => {}); }, 12 * 60 * 1000);
-  console.log('keep-alive ativo:', SELF_URL);
+function aquecer() {
+  // bate no próprio geocoder: mantém a instância acordada E a conexão externa (Photon) quente,
+  // para a 1ª busca de um usuário nunca pegar o caminho frio (~22s).
+  const base = (SELF_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+  fetch(base + '/api/geocode?q=rua').catch(() => {});
+}
+if (PROD) {
+  setTimeout(aquecer, 4000);                 // aquece logo após subir
+  setInterval(aquecer, 10 * 60 * 1000);      // e a cada 10 min (Render free hiberna após ~15 min ocioso)
+  console.log('keep-alive/aquecimento ativo', SELF_URL ? '(' + SELF_URL + ')' : '(local)');
 }
